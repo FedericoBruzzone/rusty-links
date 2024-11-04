@@ -1,8 +1,8 @@
 mod utils;
 
 mod test_workspaces {
-    use pretty_assertions::assert_eq;
     use crate::utils::run_with_cargo_bin;
+    use pretty_assertions::assert_eq;
 
     #[test]
     fn test_version_output() -> Result<(), String> {

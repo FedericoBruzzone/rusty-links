@@ -102,8 +102,7 @@ impl PrintAstCallbacks {
         }
     }
 
-    fn post_process_cli_args(&self, _visitor: &Visitor) {
-    }
+    fn post_process_cli_args(&self, _visitor: &Visitor) {}
 }
 
 impl rustc_driver::Callbacks for PrintAstCallbacks {
@@ -136,8 +135,7 @@ impl rustc_driver::Callbacks for PrintAstCallbacks {
                 self.pre_process_cli_args(&tcx);
 
                 // visit AST
-                let visitor = &mut Visitor {
-                };
+                let visitor = &mut Visitor {};
 
                 self.post_process_cli_args(&visitor);
             });
@@ -148,4 +146,3 @@ impl rustc_driver::Callbacks for PrintAstCallbacks {
 
 /// AST visitor to collect data to build the graphs
 struct Visitor;
-
