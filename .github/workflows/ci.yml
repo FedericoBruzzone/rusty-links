@@ -31,12 +31,6 @@ jobs:
         toolchain: [nightly-2024-10-18, nightly]
     runs-on: ${{ matrix.os }}
     steps:
-      - name: "Set up Git for Windows"
-        if: matrix.os == 'windows-latest'
-        run: git config --global core.autocrlf true
-      - name: "Set up Git for macOS and Linux"
-        if: matrix.os == 'ubuntu-latest' || matrix.os == 'macos-latest'
-        run: git config --global core.autocrlf input
       - uses: actions/checkout@v4
       - name: Install toolchain
         run: rustup toolchain install ${{ matrix.toolchain }}
