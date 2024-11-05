@@ -1,5 +1,5 @@
 [package]
-name = "rustc-ex"
+name = "rusty-links"
 version = "0.1.0-nightly-2024-10-18"
 edition = "2021"
 
@@ -9,10 +9,10 @@ edition = "2021"
 rustc_private = true
 
 [[bin]]
-name = "cargo-rustc-ex"
+name = "cargo-rusty-links"
 
 [[bin]]
-name = "rustc-ex-driver"
+name = "rusty-links-driver"
 
 [features]
 default = []

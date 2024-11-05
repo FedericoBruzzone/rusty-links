@@ -4,13 +4,13 @@ use std::path::Path;
 use std::process::Command;
 use std::sync::Once;
 
-const PLUGIN_NAME: &str = "rustc-ex";
+const PLUGIN_NAME: &str = "rusty-links";
 const TEST_MODE_FEATURE: &str = "test-mode";
 static INSTALL_PLUGIN: Once = Once::new();
 
 /// Run the plugin with the `cargo` command
 ///
-/// This function will install the plugin (cargo-rustc-ex binary) in a temporary directory and run it with the `cargo` command.
+/// This function will install the plugin (cargo-rusty-links binary) in a temporary directory and run it with the `cargo` command.
 /// The plugin will be installed only once.
 ///
 /// # Arguments
@@ -23,7 +23,7 @@ pub fn run_with_cargo_bin(
     plugin_args: &[&str],
 ) -> Result<(String, Option<String>), String> {
     // Install the plugin
-    let root_dir = env::temp_dir().join("rustc-ex");
+    let root_dir = env::temp_dir().join(PLUGIN_NAME);
     let current_dir = Path::new(".").canonicalize().unwrap();
     INSTALL_PLUGIN.call_once(|| {
         let mut cargo_cmd = Command::new("cargo");
@@ -63,8 +63,6 @@ pub fn run_with_cargo_bin(
     if let Some(expected_outout_name) = expected_outout_name {
         let expected_output_path = workspace_path.join(expected_outout_name);
         let expected_output = fs::read_to_string(expected_output_path).unwrap();
-        // #[cfg(windows)]
-        // let expected_output = expected_output.replace("\r", "");
         Ok((
             String::from_utf8(output.stdout).unwrap(),
             Some(expected_output),

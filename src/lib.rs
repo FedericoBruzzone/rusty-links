@@ -15,14 +15,10 @@ use instrument::{CrateFilter, RustcPlugin, RustcPluginArgs, Utf8Path};
 use serde::{Deserialize, Serialize};
 use std::{borrow::Cow, env};
 
-// This struct is the plugin provided to the rustc_plugin framework,
-// and it must be exported for use by the CLI/driver binaries.
-pub struct RustcEx;
-
 // To parse CLI arguments, we use Clap for this example. But that
 // detail is up to you.
 #[derive(Parser, Serialize, Deserialize, Debug, Default)]
-pub struct PrintAstArgs {
+pub struct PluginArgs {
     /// Print the AST of the crate
     #[clap(long)]
     print_crate: bool,
@@ -33,15 +29,19 @@ pub struct PrintAstArgs {
     cargo_args: Vec<String>,
 }
 
-impl RustcPlugin for RustcEx {
-    type Args = PrintAstArgs;
+// This struct is the plugin provided to the intrumentation module,
+// and it must be exported for use by the CLI/driver binaries.
+pub struct RustyLinks;
+
+impl RustcPlugin for RustyLinks {
+    type Args = PluginArgs;
 
     fn version(&self) -> Cow<'static, str> {
         env!("CARGO_PKG_VERSION").into()
     }
 
     fn driver_name(&self) -> Cow<'static, str> {
-        "rustc-ex-driver".into()
+        "rusty-links-driver".into()
     }
 
     fn modify_cargo(&self, cargo: &mut std::process::Command, args: &Self::Args) {
@@ -60,17 +60,17 @@ impl RustcPlugin for RustcEx {
         //
         // ## Test
         //
-        // In tests we run something like `cargo rustc-ex --print-dot` because the plugin is installed as a binary in a temporary directory.
-        // It is expanded to `/tmp/rustc-ex/bin/cargo-rustc-ex rustc-ex --print-dot`, so we need to skip the first argument because it is the `cargo` command.
+        // In tests we run something like `cargo rusty-links --print-dot` because the plugin is installed as a binary in a temporary directory.
+        // It is expanded to `/tmp/rusty-links/bin/cargo-rusty-links rusty-links --print-dot`, so we need to skip the first argument because it is the `cargo` command.
         //
         // ## Cli
-        // In the CLI we run something like `cargo run --bin rustc-ex -- --print-dot` or `./target/debug/cargo-rustc-ex --print-dot`.
-        // It is expanded to `.target/debug/cargo-rustc-ex --print-dot`, so we don't need to skip the first argument.
+        // In the CLI we run something like `cargo run --bin rusty-links -- --print-dot` or `./target/debug/cargo-rusty-links --print-dot`.
+        // It is expanded to `.target/debug/cargo-rusty-links --print-dot`, so we don't need to skip the first argument.
         #[cfg(feature = "test-mode")]
-        let args = PrintAstArgs::parse_from(env::args().skip(1));
+        let args = PluginArgs::parse_from(env::args().skip(1));
 
         #[cfg(not(feature = "test-mode"))]
-        let args = PrintAstArgs::parse_from(env::args());
+        let args = PluginArgs::parse_from(env::args());
 
         let filter = CrateFilter::AllCrates;
         RustcPluginArgs { args, filter }
@@ -83,17 +83,17 @@ impl RustcPlugin for RustcEx {
         compiler_args: Vec<String>,
         plugin_args: Self::Args,
     ) -> rustc_interface::interface::Result<()> {
-        let mut callbacks = PrintAstCallbacks { args: plugin_args };
+        let mut callbacks = PluginCallbacks { args: plugin_args };
         let compiler = rustc_driver::RunCompiler::new(&compiler_args, &mut callbacks);
         compiler.run()
     }
 }
 
-struct PrintAstCallbacks {
-    args: PrintAstArgs,
+struct PluginCallbacks {
+    args: PluginArgs,
 }
 
-impl PrintAstCallbacks {
+impl PluginCallbacks {
     fn pre_process_cli_args(&self, tcx: &rustc_middle::ty::TyCtxt) {
         if self.args.print_crate {
             let resolver_and_krate = tcx.resolver_for_lowering().borrow();
@@ -105,7 +105,7 @@ impl PrintAstCallbacks {
     fn post_process_cli_args(&self, _visitor: &Visitor) {}
 }
 
-impl rustc_driver::Callbacks for PrintAstCallbacks {
+impl rustc_driver::Callbacks for PluginCallbacks {
     /// Called before creating the compiler instance
     fn config(&mut self, _config: &mut rustc_interface::Config) {
         // Set the session creation callback to initialize the Fluent bundle.

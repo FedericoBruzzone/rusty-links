@@ -2,5 +2,5 @@
 
 fn main() {
     env_logger::init();
-    rustc_ex::instrument::cli_main(rustc_ex::RustcEx);
+    rusty_links::instrument::cli_main(rusty_links::RustyLinks);
 }
