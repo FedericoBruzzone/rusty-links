@@ -63,8 +63,8 @@ pub fn run_with_cargo_bin(
     if let Some(expected_outout_name) = expected_outout_name {
         let expected_output_path = workspace_path.join(expected_outout_name);
         let expected_output = fs::read_to_string(expected_output_path).unwrap();
-        #[cfg(windows)]
-        let expected_output = expected_output.replace("\r", "");
+        // #[cfg(windows)]
+        // let expected_output = expected_output.replace("\r", "");
         Ok((
             String::from_utf8(output.stdout).unwrap(),
             Some(expected_output),
