@@ -54,3 +54,4 @@ jobs:
         run: cargo clippy --verbose
       - name: Run cargo fmt
         run: cargo fmt -- --check
+
