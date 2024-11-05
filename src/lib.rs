@@ -9,7 +9,9 @@ extern crate rustc_session;
 extern crate rustc_span;
 
 pub mod instrument;
+pub mod analysis;
 
+use analysis::Analyzer;
 use clap::Parser;
 use instrument::{CrateFilter, RustcPlugin, RustcPluginArgs, Utf8Path};
 use serde::{Deserialize, Serialize};
@@ -17,11 +19,19 @@ use std::{borrow::Cow, env};
 
 // To parse CLI arguments, we use Clap for this example. But that
 // detail is up to you.
-#[derive(Parser, Serialize, Deserialize, Debug, Default)]
-pub struct PluginArgs {
+#[derive(Parser, Serialize, Deserialize, Debug, Default, Clone)]
+pub struct CliArgs {
     /// Print the AST of the crate
     #[clap(long)]
     print_crate: bool,
+
+    /// Print the unoptimized MIR
+    #[clap(long)]
+    print_unoptimized_mir: bool,
+
+    // Print MIR
+    #[clap(long)]
+    print_mir: bool,
 
     #[clap(last = true)]
     // mytool --allcaps -- some extra args here
@@ -34,7 +44,7 @@ pub struct PluginArgs {
 pub struct RustyLinks;
 
 impl RustcPlugin for RustyLinks {
-    type Args = PluginArgs;
+    type Args = CliArgs;
 
     fn version(&self) -> Cow<'static, str> {
         env!("CARGO_PKG_VERSION").into()
@@ -67,10 +77,10 @@ impl RustcPlugin for RustyLinks {
         // In the CLI we run something like `cargo run --bin rusty-links -- --print-dot` or `./target/debug/cargo-rusty-links --print-dot`.
         // It is expanded to `.target/debug/cargo-rusty-links --print-dot`, so we don't need to skip the first argument.
         #[cfg(feature = "test-mode")]
-        let args = PluginArgs::parse_from(env::args().skip(1));
+        let args = CliArgs::parse_from(env::args().skip(1));
 
         #[cfg(not(feature = "test-mode"))]
-        let args = PluginArgs::parse_from(env::args());
+        let args = CliArgs::parse_from(env::args());
 
         let filter = CrateFilter::AllCrates;
         RustcPluginArgs { args, filter }
@@ -90,24 +100,12 @@ impl RustcPlugin for RustyLinks {
 }
 
 struct PluginCallbacks {
-    args: PluginArgs,
-}
-
-impl PluginCallbacks {
-    fn pre_process_cli_args(&self, tcx: &rustc_middle::ty::TyCtxt) {
-        if self.args.print_crate {
-            let resolver_and_krate = tcx.resolver_for_lowering().borrow();
-            let krate = &*resolver_and_krate.1;
-            println!("{:#?}", krate);
-        }
-    }
-
-    fn post_process_cli_args(&self, _visitor: &Visitor) {}
+    args: CliArgs,
 }
 
 impl rustc_driver::Callbacks for PluginCallbacks {
     /// Called before creating the compiler instance
-    fn config(&mut self, _config: &mut rustc_interface::Config) {
+    fn config(&mut self, config: &mut rustc_interface::Config) {
         // Set the session creation callback to initialize the Fluent bundle.
         // It will make the compiler silent and use the fallback bundle.
         // Errors will not be printed in the `stderr`.
@@ -119,30 +117,28 @@ impl rustc_driver::Callbacks for PluginCallbacks {
         //
         //     sess.dcx().make_silent(fallback_bundle, None, false);
         // }));
+        if !self.args.print_mir {
+            config.opts.unstable_opts.mir_opt_level = Some(0);
+        }
     }
 
     /// Called after expansion. Return value instructs the compiler whether to
     /// continue the compilation afterwards (defaults to `Compilation::Continue`)
     fn after_expansion<'tcx>(
         &mut self,
-        _compiler: &rustc_interface::interface::Compiler,
+        compiler: &rustc_interface::interface::Compiler,
         queries: &'tcx rustc_interface::Queries<'tcx>,
     ) -> rustc_driver::Compilation {
+        // Abort if errors occurred during expansion.
+        compiler.sess.dcx().abort_if_errors();
         queries
             .global_ctxt()
             .expect("Error: global context not found")
-            .enter(|tcx: rustc_middle::ty::TyCtxt| {
-                self.pre_process_cli_args(&tcx);
-
-                // visit AST
-                let visitor = &mut Visitor {};
-
-                self.post_process_cli_args(&visitor);
-            });
-
+            .enter(|tcx: rustc_middle::ty::TyCtxt|
+                   Analyzer::new(tcx, self.args.clone()).run()
+            );
+        compiler.sess.dcx().abort_if_errors();
+        // FIXME: consider to continue compilation
         rustc_driver::Compilation::Stop
     }
 }
-
-/// AST visitor to collect data to build the graphs
-struct Visitor;
