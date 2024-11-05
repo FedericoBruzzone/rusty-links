@@ -3,13 +3,14 @@
 extern crate rustc_ast;
 extern crate rustc_driver;
 extern crate rustc_errors;
+extern crate rustc_index;
 extern crate rustc_interface;
 extern crate rustc_middle;
 extern crate rustc_session;
 extern crate rustc_span;
 
-pub mod instrument;
 pub mod analysis;
+pub mod instrument;
 
 use analysis::Analyzer;
 use clap::Parser;
@@ -134,9 +135,7 @@ impl rustc_driver::Callbacks for PluginCallbacks {
         queries
             .global_ctxt()
             .expect("Error: global context not found")
-            .enter(|tcx: rustc_middle::ty::TyCtxt|
-                   Analyzer::new(tcx, self.args.clone()).run()
-            );
+            .enter(|tcx: rustc_middle::ty::TyCtxt| Analyzer::new(tcx, self.args.clone()).run());
         compiler.sess.dcx().abort_if_errors();
         // FIXME: consider to continue compilation
         rustc_driver::Compilation::Stop
