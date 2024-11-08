@@ -14,6 +14,7 @@ pub const SPECIFIC_CRATE: &str = "SPECIFIC_CRATE";
 pub const SPECIFIC_TARGET: &str = "SPECIFIC_TARGET";
 pub const CARGO_VERBOSE: &str = "CARGO_VERBOSE";
 pub const RUSTC_WORKSPACE_WRAPPER: &str = "RUSTC_WORKSPACE_WRAPPER";
+// pub const RUST_LOG_STYLE: &str = "RUST_LOG_STYLE";
 
 /// The top-level function that should be called in your user-facing binary.
 pub fn cli_main<T: RustcPlugin>(plugin: T) {
@@ -102,6 +103,7 @@ pub fn cli_main<T: RustcPlugin>(plugin: T) {
     log::debug!("Plugin args: {}", args_str);
     // We need to pass the plugin args to the driver, so we set an env var
     cmd.env(PLUGIN_ARGS, args_str);
+    // cmd.env(RUST_LOG_STYLE, "always"); // Always colorize logs
 
     // HACK: if running on the rustc codebase, this env var needs to exist
     // for the code to compile

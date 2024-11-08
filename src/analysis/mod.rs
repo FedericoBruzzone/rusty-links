@@ -162,6 +162,7 @@ impl<'tcx, 'a> FirstAnalysis<'tcx, 'a> {
 
 struct FirstVisitor;
 
+// Guardare le tre diverse tipologie di link: copy move e borrow
 impl FirstVisitor {
     fn start_visit(&mut self, local_def_id: rustc_span::def_id::LocalDefId, body: &mir::Body<'_>) {
         log::debug!("Visiting the local_def_id: {:?}", local_def_id);
@@ -171,12 +172,125 @@ impl FirstVisitor {
 }
 
 impl<'tcx> Visitor<'tcx> for FirstVisitor {
+    // Entry point
     fn visit_body(&mut self, body: &mir::Body<'tcx>) {
+        log::trace!("Visiting the body {:?}", body);
         self.super_body(body);
     }
 
-    // fn visit_local_decl(&mut self, local: mir::Local, local_decl: &mir::LocalDecl<'_>) {}
+    // FIXME: remove panic
+    // Call by the super_body
+    fn visit_ty(&mut self, ty: ty::Ty<'tcx>, context: mir::visit::TyContext) {
+        log::trace!(
+            "Visiting the type: {:?}, and the context: {:?}",
+            ty,
+            context
+        );
+        self.super_ty(ty);
+    }
 
-    // We can avoid to visit the `ty` because we are not interested in the types.
-    // fn visit_ty(&mut self, ty: ty::Ty<'tcx>, context: mir::visit::TyContext) {}
+    // Call by the super_body
+    fn visit_basic_block_data(&mut self, block: mir::BasicBlock, data: &mir::BasicBlockData<'tcx>) {
+        log::trace!(
+            "Visiting the basic block: {:?}, and the basic block data: {:?}",
+            block,
+            data
+        );
+        self.super_basic_block_data(block, data);
+    }
+
+    // Call by the super_basic_block_data
+    fn visit_statement(&mut self, statement: &mir::Statement<'tcx>, location: mir::Location) {
+        log::trace!("Visiting the statement: {:?}", statement);
+        self.super_statement(statement, location)
+    }
+
+    // Call by the super_basic_block_data
+    fn visit_terminator(&mut self, terminator: &mir::Terminator<'tcx>, location: mir::Location) {
+        log::trace!("Visiting the terminator: {:?}", terminator);
+        self.super_terminator(terminator, location)
+    }
+
+    // Call by the super_statement
+    fn visit_source_info(&mut self, source_info: &mir::SourceInfo) {
+        log::trace!("Visiting the source info: {:?}", source_info);
+        self.super_source_info(source_info)
+    }
+
+    // Call by super_statement
+    fn visit_assign(
+        &mut self,
+        place: &mir::Place<'tcx>,
+        rvalue: &mir::Rvalue<'tcx>,
+        location: mir::Location,
+    ) {
+        log::trace!(
+            "Visiting the assign: {:?}, {:?}, {:?}",
+            place,
+            rvalue,
+            location
+        );
+        self.super_assign(place, rvalue, location);
+    }
+
+    // TODO: Add the other from super_statement
+
+    // Call by the super_assign
+    fn visit_place(
+        &mut self,
+        place: &mir::Place<'tcx>,
+        context: mir::visit::PlaceContext,
+        location: mir::Location,
+    ) {
+        log::debug!(
+            "Visiting the place: {:?}, {:?}, {:?}",
+            place,
+            context,
+            location
+        );
+        self.super_place(place, context, location);
+    }
+
+    // Call by the super_assign
+    fn visit_rvalue(&mut self, rvalue: &mir::Rvalue<'tcx>, location: mir::Location) {
+        log::debug!("Visiting the rvalue: {:?}, {:?}", rvalue, location);
+        match rvalue {
+            mir::Rvalue::Use(operand) => log::debug!("Operand: {:?}", operand),
+            mir::Rvalue::Repeat(operand, _) => log::debug!("Operand: {:?}", operand),
+            mir::Rvalue::Ref(region, borrow_kind, place) => log::debug!(
+                "Region: {:?}, BorrowKind: {:?}, Place: {:?}",
+                region,
+                borrow_kind,
+                place
+            ),
+            mir::Rvalue::ThreadLocalRef(def_id) => log::debug!("DefId: {:?}", def_id),
+            mir::Rvalue::RawPtr(mutability, place) => {
+                log::debug!("Mutability: {:?}, Place: {:?}", mutability, place)
+            }
+            mir::Rvalue::Len(place) => log::debug!("Place: {:?}", place),
+            mir::Rvalue::Cast(cast_kind, operand, ty) => log::debug!(
+                "CastKind: {:?}, Operand: {:?}, Ty: {:?}",
+                cast_kind,
+                operand,
+                ty
+            ),
+            mir::Rvalue::BinaryOp(bin_op, _) => log::debug!("BinOp: {:?}", bin_op),
+            mir::Rvalue::NullaryOp(null_op, ty) => {
+                log::debug!("NullOp: {:?}, Ty: {:?}", null_op, ty)
+            }
+            mir::Rvalue::UnaryOp(un_op, operand) => {
+                log::debug!("UnOp: {:?}, Operand: {:?}", un_op, operand)
+            }
+            mir::Rvalue::Discriminant(place) => log::debug!("Place: {:?}", place),
+            mir::Rvalue::Aggregate(aggregate_kind, index_vec) => log::debug!(
+                "AggregateKind: {:?}, IndexVec: {:?}",
+                aggregate_kind,
+                index_vec
+            ),
+            mir::Rvalue::ShallowInitBox(operand, ty) => {
+                log::debug!("Operand: {:?}, Ty: {:?}", operand, ty)
+            }
+            mir::Rvalue::CopyForDeref(place) => log::debug!("Place: {:?}", place),
+        }
+    }
 }

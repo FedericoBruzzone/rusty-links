@@ -21,6 +21,8 @@ cargo test -- --test-threads=1 --nocapture
 
 > ℹ️  Additional logs can be enabled by setting the `RUST_LOG` environment variable to `debug`.
 
+> ℹ️  The `RUST_LOG_STYLE` environment variable can be set to `always` to force the logs to be colored.
+
 ```bash
 cd tests/workspaces/first
 cargo run --manifest-path ../../Cargo.toml --bin cargo-rusty-links [--CARGO_ARG] -- [--PLUGIN_ARG]
