@@ -1,5 +1,4 @@
-use crate::CliArgs;
-
+use crate::{utils::text_mod::TextMod, CliArgs};
 use std::{cell::Cell, time::Duration};
 
 // use rustc_middle::mir::BasicBlock;
@@ -39,7 +38,15 @@ impl<'tcx> Analyzer<'tcx> {
         log::debug!("Post-processing CLI arguments");
     }
 
-    fn run_analysis(&mut self, name: &str, f: impl FnOnce(&mut Self)) {
+    fn modify_if_needed(&self, msg: &str, text_mod: TextMod) -> String {
+        if self.cli_args.color_log {
+            text_mod.apply(msg)
+        } else {
+            msg.to_string()
+        }
+    }
+
+    fn run_analysis(&mut self, name: &str, f: impl FnOnce(&Self)) {
         log::debug!("Running analysis: {}", name);
         f(self);
         log::debug!("Finished analysis: {}", name);
@@ -55,12 +62,12 @@ impl<'tcx> Analyzer<'tcx> {
 }
 
 struct FirstAnalysis<'tcx, 'a> {
-    analyzer: &'a mut Analyzer<'tcx>,
+    analyzer: &'a Analyzer<'tcx>,
     elapsed: Cell<Option<Duration>>,
 }
 
 impl<'tcx, 'a> FirstAnalysis<'tcx, 'a> {
-    pub fn new(analyzer: &'a mut Analyzer<'tcx>) -> Self {
+    pub fn new(analyzer: &'a Analyzer<'tcx>) -> Self {
         Self {
             analyzer,
             elapsed: Cell::new(None),
@@ -68,7 +75,9 @@ impl<'tcx, 'a> FirstAnalysis<'tcx, 'a> {
     }
 
     fn visitor(&self) {
-        let visitor = &mut FirstVisitor;
+        let visitor = &mut FirstVisitor {
+            analyzer: self.analyzer,
+        };
 
         // We do not need to call `mir_keys` (self.analyzer.tcx.mir_keys(()))
         // because it returns also the enum and struct constructors
@@ -160,54 +169,97 @@ impl<'tcx, 'a> FirstAnalysis<'tcx, 'a> {
     }
 }
 
-struct FirstVisitor;
+struct FirstVisitor<'tcx, 'a> {
+    analyzer: &'a Analyzer<'tcx>,
+}
 
-// Guardare le tre diverse tipologie di link: copy move e borrow
-impl FirstVisitor {
-    fn start_visit(&mut self, local_def_id: rustc_span::def_id::LocalDefId, body: &mir::Body<'_>) {
+// Guardare le tre diverse tipologie di linear: copy move e borrow
+impl<'tcx, 'a> FirstVisitor<'tcx, 'a> {
+    fn start_visit(
+        &mut self,
+        local_def_id: rustc_span::def_id::LocalDefId,
+        body: &mir::Body<'tcx>,
+    ) {
         log::debug!("Visiting the local_def_id: {:?}", local_def_id);
         // TODO: push onto the stack the local_def_id
         self.visit_body(body);
     }
 }
 
-impl<'tcx> Visitor<'tcx> for FirstVisitor {
+impl<'tcx> Visitor<'tcx> for FirstVisitor<'tcx, '_> {
     // Entry point
     fn visit_body(&mut self, body: &mir::Body<'tcx>) {
         log::trace!("Visiting the body {:?}", body);
         self.super_body(body);
     }
 
-    // FIXME: remove panic
     // Call by the super_body
     fn visit_ty(&mut self, ty: ty::Ty<'tcx>, context: mir::visit::TyContext) {
-        log::trace!(
-            "Visiting the type: {:?}, and the context: {:?}",
-            ty,
-            context
-        );
+        log::trace!("Visiting the ty: {:?}, {:?}", ty, context);
+        // We should visit the `FnDef` because in `_12 = test_own(move _13) -> [return: bb5, unwind continue];`
+        // `test_own` is a `FnDef`.
         self.super_ty(ty);
     }
 
     // Call by the super_body
     fn visit_basic_block_data(&mut self, block: mir::BasicBlock, data: &mir::BasicBlockData<'tcx>) {
-        log::trace!(
-            "Visiting the basic block: {:?}, and the basic block data: {:?}",
-            block,
-            data
-        );
+        log::trace!("Visiting the basic block data: {:?}, {:?}", block, data);
         self.super_basic_block_data(block, data);
+    }
+
+    // TODO: implement
+    // Call by the super_body
+    fn visit_source_scope(&mut self, scope: mir::SourceScope) {
+        self.super_source_scope(scope);
+    }
+
+    // TODO: implement
+    // Call by the super_body
+    fn visit_local_decl(&mut self, local: mir::Local, local_decl: &mir::LocalDecl<'tcx>) {
+        self.super_local_decl(local, local_decl);
+    }
+
+    // TODO: implement
+    // Call by the super_body
+    fn visit_user_type_annotation(
+        &mut self,
+        index: ty::UserTypeAnnotationIndex,
+        ty: &ty::CanonicalUserTypeAnnotation<'tcx>,
+    ) {
+        self.super_user_type_annotation(index, ty);
+    }
+
+    // TODO: implement
+    // Call by the super_body
+    fn visit_var_debug_info(&mut self, var_debug_info: &mir::VarDebugInfo<'tcx>) {
+        self.super_var_debug_info(var_debug_info);
+    }
+
+    // TODO: implement
+    // Call by the super_body
+    fn visit_span(&mut self, span: rustc_span::Span) {
+        self.super_span(span);
+    }
+
+    // TODO: implement
+    // Call by the super_body
+    fn visit_const_operand(&mut self, constant: &mir::ConstOperand<'tcx>, location: mir::Location) {
+        self.super_const_operand(constant, location);
     }
 
     // Call by the super_basic_block_data
     fn visit_statement(&mut self, statement: &mir::Statement<'tcx>, location: mir::Location) {
-        log::trace!("Visiting the statement: {:?}", statement);
+        log::trace!("Visiting the statement: {:?}, {:?}", statement, location);
         self.super_statement(statement, location)
     }
 
     // Call by the super_basic_block_data
     fn visit_terminator(&mut self, terminator: &mir::Terminator<'tcx>, location: mir::Location) {
-        log::trace!("Visiting the terminator: {:?}", terminator);
+        let message = self.analyzer.modify_if_needed(
+            format!("Visiting the terminator: {:?}, {:?}", terminator, location).as_str(),
+            TextMod::Green,
+        );
+        log::trace!("{}", message);
         self.super_terminator(terminator, location)
     }
 
@@ -224,12 +276,15 @@ impl<'tcx> Visitor<'tcx> for FirstVisitor {
         rvalue: &mir::Rvalue<'tcx>,
         location: mir::Location,
     ) {
-        log::trace!(
-            "Visiting the assign: {:?}, {:?}, {:?}",
-            place,
-            rvalue,
-            location
+        let message = self.analyzer.modify_if_needed(
+            format!(
+                "Visiting the assign: {:?}, {:?}, {:?}",
+                place, rvalue, location
+            )
+            .as_str(),
+            TextMod::Green,
         );
+        log::trace!("{}", message);
         self.super_assign(place, rvalue, location);
     }
 
@@ -242,7 +297,7 @@ impl<'tcx> Visitor<'tcx> for FirstVisitor {
         context: mir::visit::PlaceContext,
         location: mir::Location,
     ) {
-        log::debug!(
+        log::trace!(
             "Visiting the place: {:?}, {:?}, {:?}",
             place,
             context,
@@ -253,44 +308,44 @@ impl<'tcx> Visitor<'tcx> for FirstVisitor {
 
     // Call by the super_assign
     fn visit_rvalue(&mut self, rvalue: &mir::Rvalue<'tcx>, location: mir::Location) {
-        log::debug!("Visiting the rvalue: {:?}, {:?}", rvalue, location);
+        log::trace!("Visiting the rvalue: {:?}, {:?}", rvalue, location);
         match rvalue {
-            mir::Rvalue::Use(operand) => log::debug!("Operand: {:?}", operand),
-            mir::Rvalue::Repeat(operand, _) => log::debug!("Operand: {:?}", operand),
-            mir::Rvalue::Ref(region, borrow_kind, place) => log::debug!(
+            mir::Rvalue::Use(operand) => log::trace!("Operand: {:?}", operand),
+            mir::Rvalue::Repeat(operand, _) => log::trace!("Operand: {:?}", operand),
+            mir::Rvalue::Ref(region, borrow_kind, place) => log::trace!(
                 "Region: {:?}, BorrowKind: {:?}, Place: {:?}",
                 region,
                 borrow_kind,
                 place
             ),
-            mir::Rvalue::ThreadLocalRef(def_id) => log::debug!("DefId: {:?}", def_id),
+            mir::Rvalue::ThreadLocalRef(def_id) => log::trace!("DefId: {:?}", def_id),
             mir::Rvalue::RawPtr(mutability, place) => {
-                log::debug!("Mutability: {:?}, Place: {:?}", mutability, place)
+                log::trace!("Mutability: {:?}, Place: {:?}", mutability, place)
             }
-            mir::Rvalue::Len(place) => log::debug!("Place: {:?}", place),
-            mir::Rvalue::Cast(cast_kind, operand, ty) => log::debug!(
+            mir::Rvalue::Len(place) => log::trace!("Place: {:?}", place),
+            mir::Rvalue::Cast(cast_kind, operand, ty) => log::trace!(
                 "CastKind: {:?}, Operand: {:?}, Ty: {:?}",
                 cast_kind,
                 operand,
                 ty
             ),
-            mir::Rvalue::BinaryOp(bin_op, _) => log::debug!("BinOp: {:?}", bin_op),
+            mir::Rvalue::BinaryOp(bin_op, _) => log::trace!("BinOp: {:?}", bin_op),
             mir::Rvalue::NullaryOp(null_op, ty) => {
-                log::debug!("NullOp: {:?}, Ty: {:?}", null_op, ty)
+                log::trace!("NullOp: {:?}, Ty: {:?}", null_op, ty)
             }
             mir::Rvalue::UnaryOp(un_op, operand) => {
-                log::debug!("UnOp: {:?}, Operand: {:?}", un_op, operand)
+                log::trace!("UnOp: {:?}, Operand: {:?}", un_op, operand)
             }
-            mir::Rvalue::Discriminant(place) => log::debug!("Place: {:?}", place),
-            mir::Rvalue::Aggregate(aggregate_kind, index_vec) => log::debug!(
+            mir::Rvalue::Discriminant(place) => log::trace!("Place: {:?}", place),
+            mir::Rvalue::Aggregate(aggregate_kind, index_vec) => log::trace!(
                 "AggregateKind: {:?}, IndexVec: {:?}",
                 aggregate_kind,
                 index_vec
             ),
             mir::Rvalue::ShallowInitBox(operand, ty) => {
-                log::debug!("Operand: {:?}, Ty: {:?}", operand, ty)
+                log::trace!("Operand: {:?}, Ty: {:?}", operand, ty)
             }
-            mir::Rvalue::CopyForDeref(place) => log::debug!("Place: {:?}", place),
+            mir::Rvalue::CopyForDeref(place) => log::trace!("Place: {:?}", place),
         }
     }
 }

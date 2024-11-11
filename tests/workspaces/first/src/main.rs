@@ -47,7 +47,7 @@ fn main() {
     let t1 = T { value: 10 };
     let mut t2 = T { value: 10 };
 
-    test_own(t1.clone());
+    test_own(t1.clone()); // This is a `move` where the value is not in the `local_var_decl`
     test_bor(&t1);
     test_mut_bor(&mut t2);
     test_own(t1);

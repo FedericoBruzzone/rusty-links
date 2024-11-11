@@ -11,6 +11,7 @@ extern crate rustc_span;
 
 pub mod analysis;
 pub mod instrument;
+pub mod utils;
 
 use analysis::Analyzer;
 use clap::Parser;
@@ -33,6 +34,10 @@ pub struct CliArgs {
     // Print MIR
     #[clap(long)]
     print_mir: bool,
+
+    // Color lor
+    #[clap(long)]
+    color_log: bool,
 
     #[clap(last = true)]
     // mytool --allcaps -- some extra args here
