@@ -2,11 +2,11 @@ use crate::{utils::text_mod::TextMod, CliArgs};
 use std::{cell::Cell, time::Duration};
 
 // use rustc_index::Idx;
+use rustc_index::IndexVec;
 use rustc_middle::mir;
 use rustc_middle::mir::visit::Visitor;
 use rustc_middle::ty;
 use rustc_span::def_id::LocalDefId;
-use rustc_index::IndexVec;
 
 pub struct Analyzer<'tcx> {
     tcx: ty::TyCtxt<'tcx>,
@@ -180,13 +180,10 @@ struct FirstVisitor<'tcx, 'a> {
 
 // Guardare le tre diverse tipologie di linear: copy move e borrow
 impl<'tcx, 'a> FirstVisitor<'tcx, 'a> {
-    fn start_visit(
-        &mut self,
-        local_def_id: LocalDefId,
-        body: &'a mir::Body<'tcx>,
-    ) {
+    fn start_visit(&mut self, local_def_id: LocalDefId, body: &'a mir::Body<'tcx>) {
+        self.stack_local_def_id
+            .push((local_def_id, &body.local_decls));
         log::debug!("Visiting the local_def_id: {:?}", local_def_id);
-        self.stack_local_def_id.push((local_def_id, &body.local_decls));
         self.visit_body(body);
         self.stack_local_def_id.pop();
     }
@@ -314,44 +311,63 @@ impl<'tcx> Visitor<'tcx> for FirstVisitor<'tcx, '_> {
 
     // Call by the super_assign
     fn visit_rvalue(&mut self, rvalue: &mir::Rvalue<'tcx>, location: mir::Location) {
-        log::trace!("Visiting the rvalue: {:?}, {:?}", rvalue, location);
+        let mut message = format!("Visiting the rvalue ({:?}, {:?})", rvalue, location);
         match rvalue {
-            mir::Rvalue::Use(operand) => log::trace!("Operand: {:?}", operand),
-            mir::Rvalue::Repeat(operand, _) => log::trace!("Operand: {:?}", operand),
-            mir::Rvalue::Ref(region, borrow_kind, place) => log::trace!(
-                "Region: {:?}, BorrowKind: {:?}, Place: {:?}",
-                region,
-                borrow_kind,
-                place
-            ),
-            mir::Rvalue::ThreadLocalRef(def_id) => log::trace!("DefId: {:?}", def_id),
-            mir::Rvalue::RawPtr(mutability, place) => {
-                log::trace!("Mutability: {:?}, Place: {:?}", mutability, place)
+            mir::Rvalue::Use(operand) => {
+                message.push_str(format!(" Operand: {:?}", operand).as_str());
             }
-            mir::Rvalue::Len(place) => log::trace!("Place: {:?}", place),
-            mir::Rvalue::Cast(cast_kind, operand, ty) => log::trace!(
-                "CastKind: {:?}, Operand: {:?}, Ty: {:?}",
-                cast_kind,
-                operand,
-                ty
-            ),
-            mir::Rvalue::BinaryOp(bin_op, _) => log::trace!("BinOp: {:?}", bin_op),
+            mir::Rvalue::Repeat(operand, _) => {
+                message.push_str(format!(" Operand: {:?}", operand).as_str());
+            }
+            mir::Rvalue::Ref(region, borrow_kind, place) => {
+                message.push_str(
+                    format!(
+                        " Ref: {:?}, borrow_kind: {:?}, place: {:?}",
+                        region, borrow_kind, place
+                    )
+                    .as_str(),
+                );
+            }
+            mir::Rvalue::ThreadLocalRef(def_id) => {
+                message.push_str(format!(" ThreadLocalRef: {:?}", def_id).as_str());
+
+            }
+            mir::Rvalue::RawPtr(mutability, place) => {
+                message.push_str(
+                    format!(" RawPtr: {:?}, place: {:?}", mutability, place).as_str(),
+                );
+            }
+            mir::Rvalue::Len(place) => {
+                message.push_str(format!(" Len: {:?}", place).as_str());
+            }
+            mir::Rvalue::Cast(cast_kind, operand, ty) =>  {
+                message.push_str(format!(" CastKind: {:?}, Operand: {:?}, Ty: {:?}", cast_kind, operand, ty).as_str()),
+            }
+            mir::Rvalue::BinaryOp(bin_op, _) => {
+                message.push_str(format!(" BinOp: {:?}", bin_op).as_str());
+            }
             mir::Rvalue::NullaryOp(null_op, ty) => {
-                log::trace!("NullOp: {:?}, Ty: {:?}", null_op, ty)
+                message.push_str(format!(" NullOp: {:?}, Ty: {:?}", null_op, ty).as_str());
             }
             mir::Rvalue::UnaryOp(un_op, operand) => {
-                log::trace!("UnOp: {:?}, Operand: {:?}", un_op, operand)
+                message.push_str(format!(" UnOp: {:?}, Operand: {:?}", un_op, operand).as_str());
             }
-            mir::Rvalue::Discriminant(place) => log::trace!("Place: {:?}", place),
-            mir::Rvalue::Aggregate(aggregate_kind, index_vec) => log::trace!(
-                "AggregateKind: {:?}, IndexVec: {:?}",
-                aggregate_kind,
-                index_vec
-            ),
+            mir::Rvalue::Discriminant(place) => {
+                message.push_str(format!(" Discriminant: {:?}", place).as_str());
+            }
+            mir::Rvalue::Aggregate(aggregate_kind, index_vec) => {
+                message.push_str(
+                    format!(" AggregateKind: {:?}, IndexVec: {:?}", aggregate_kind, index_vec)
+                        .as_str(),
+                );
+            }
             mir::Rvalue::ShallowInitBox(operand, ty) => {
-                log::trace!("Operand: {:?}, Ty: {:?}", operand, ty)
+                message.push_str(format!(" ShallowInitBox: {:?}, Ty: {:?}", operand, ty).as_str());
             }
-            mir::Rvalue::CopyForDeref(place) => log::trace!("Place: {:?}", place),
+            mir::Rvalue::CopyForDeref(place) => {
+                message.push_str(format!(" CopyForDeref: {:?}", place).as_str());
+            }
         }
+        log::trace!("{}", message);
     }
 }
