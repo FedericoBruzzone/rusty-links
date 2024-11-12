@@ -1,11 +1,12 @@
 use crate::{utils::text_mod::TextMod, CliArgs};
 use std::{cell::Cell, time::Duration};
 
-// use rustc_middle::mir::BasicBlock;
 // use rustc_index::Idx;
 use rustc_middle::mir;
 use rustc_middle::mir::visit::Visitor;
 use rustc_middle::ty;
+use rustc_span::def_id::LocalDefId;
+use rustc_index::IndexVec;
 
 pub struct Analyzer<'tcx> {
     tcx: ty::TyCtxt<'tcx>,
@@ -77,6 +78,7 @@ impl<'tcx, 'a> FirstAnalysis<'tcx, 'a> {
     fn visitor(&self) {
         let visitor = &mut FirstVisitor {
             analyzer: self.analyzer,
+            stack_local_def_id: Vec::new(),
         };
 
         // We do not need to call `mir_keys` (self.analyzer.tcx.mir_keys(()))
@@ -171,18 +173,22 @@ impl<'tcx, 'a> FirstAnalysis<'tcx, 'a> {
 
 struct FirstVisitor<'tcx, 'a> {
     analyzer: &'a Analyzer<'tcx>,
+
+    // Current stack of local_def_id and local_decls
+    stack_local_def_id: Vec<(LocalDefId, &'a IndexVec<mir::Local, mir::LocalDecl<'tcx>>)>,
 }
 
 // Guardare le tre diverse tipologie di linear: copy move e borrow
 impl<'tcx, 'a> FirstVisitor<'tcx, 'a> {
     fn start_visit(
         &mut self,
-        local_def_id: rustc_span::def_id::LocalDefId,
-        body: &mir::Body<'tcx>,
+        local_def_id: LocalDefId,
+        body: &'a mir::Body<'tcx>,
     ) {
         log::debug!("Visiting the local_def_id: {:?}", local_def_id);
-        // TODO: push onto the stack the local_def_id
+        self.stack_local_def_id.push((local_def_id, &body.local_decls));
         self.visit_body(body);
+        self.stack_local_def_id.pop();
     }
 }
 
@@ -196,7 +202,7 @@ impl<'tcx> Visitor<'tcx> for FirstVisitor<'tcx, '_> {
     // Call by the super_body
     fn visit_ty(&mut self, ty: ty::Ty<'tcx>, context: mir::visit::TyContext) {
         log::trace!("Visiting the ty: {:?}, {:?}", ty, context);
-        // We should visit the `FnDef` because in `_12 = test_own(move _13) -> [return: bb5, unwind continue];`
+        // TODO: We should visit the `FnDef` because in `_12 = test_own(move _13) -> [return: bb5, unwind continue];`
         // `test_own` is a `FnDef`.
         self.super_ty(ty);
     }
