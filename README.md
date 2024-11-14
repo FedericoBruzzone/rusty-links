@@ -1,6 +1,7 @@
 # RustyLinks
 
-RustyLinks instruments the Rust compiler, in particular the MIR (Mid-level Intermediate Representation), to do static analysis on the code. It is a research project that aims to improve the Rust programming language by providing additional information to the compiler.
+RustyLinks instruments the Rust compiler, in particular the MIR (Mid-level Intermediate Representation), to leverage the borrow checker semantics to perform static analysis on the code.
+It is a research project that aims to improve the Rust programming language by providing additional information to the compiler.
 
 ## Usage
 
