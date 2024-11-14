@@ -1,6 +1,7 @@
 use crate::{utils::text_mod::TextMod, CliArgs};
 use std::{cell::Cell, time::Duration};
 
+use rustc_hash::FxHashMap;
 // use rustc_index::Idx;
 use rustc_index::IndexVec;
 use rustc_middle::mir;
@@ -78,8 +79,8 @@ impl<'tcx, 'a> FirstAnalysis<'tcx, 'a> {
     fn visitor(&self) {
         let visitor = &mut FirstVisitor {
             analyzer: self.analyzer,
-            stack_local_def_id: Vec::new(),
-            map_place_rvalue: IndexVec::new(),
+            stack_local_def_id: Vec::default(),
+            map_place_rvalue: FxHashMap::default(),
         };
 
         // We do not need to call `mir_keys` (self.analyzer.tcx.mir_keys(()))
@@ -182,7 +183,7 @@ struct FirstVisitor<'tcx, 'a> {
     // The value can be None when the respective local go out of scope,
     // thanks to the borrow checker semantic.
     // See `visit_local` function.
-    map_place_rvalue: IndexVec<mir::Local, Option<mir::Rvalue<'tcx>>>,
+    map_place_rvalue: rustc_hash::FxHashMap<mir::Local, Option<mir::Rvalue<'tcx>>>,
 }
 
 // Guardare le tre diverse tipologie di linear: copy move e borrow
@@ -190,6 +191,12 @@ impl<'tcx, 'a> FirstVisitor<'tcx, 'a> {
     fn visit_local_def_id(&mut self, local_def_id: LocalDefId, body: &'a mir::Body<'tcx>) {
         self.stack_local_def_id
             .push((local_def_id, &body.local_decls));
+
+        // It ensures that the local variable is in the map.
+        for (local, _) in body.local_decls.iter_enumerated() {
+            self.map_place_rvalue.insert(local, None);
+        }
+
         log::debug!("Visiting the local_def_id: {:?}", local_def_id);
         self.visit_body(body);
         self.stack_local_def_id.pop();
@@ -295,7 +302,8 @@ impl<'tcx> Visitor<'tcx> for FirstVisitor<'tcx, '_> {
             TextMod::Green,
         );
         log::trace!("{}", message);
-        self.map_place_rvalue[place.local] = Some(rvalue.clone());
+        self.map_place_rvalue
+            .insert(place.local, Some(rvalue.clone()));
         self.super_assign(place, rvalue, location);
     }
 
@@ -313,9 +321,15 @@ impl<'tcx> Visitor<'tcx> for FirstVisitor<'tcx, '_> {
         );
         match context {
             mir::visit::PlaceContext::NonUse(non_use_context) => match non_use_context {
-                mir::visit::NonUseContext::StorageDead => self.map_place_rvalue[local] = None,
+                mir::visit::NonUseContext::StorageDead => {
+                    let _ = self.map_place_rvalue.remove(&local);
+                }
                 mir::visit::NonUseContext::StorageLive => {
-                    assert!(self.map_place_rvalue[local].is_some())
+                    // It is not always true that if the map contains the local,
+                    // then the value is not None.
+                    // For intance, the first `bb`` can have a `StorageLive` for a local
+                    // that is only initialized in the local_decls, but never assigned.
+                    assert!(self.map_place_rvalue.contains_key(&local))
                 }
                 mir::visit::NonUseContext::AscribeUserTy(_variance) => {}
                 mir::visit::NonUseContext::VarDebugInfo => {}
