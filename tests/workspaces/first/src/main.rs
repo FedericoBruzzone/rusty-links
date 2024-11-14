@@ -36,12 +36,15 @@ fn test_own(t: T) {
     let mut t = t;
     t.value = 0;
 }
+
 fn test_bor(t: &T) {
     let _ = t;
 }
+
 fn test_mut_bor(t: &mut T) {
     let _ = t;
 }
+
 fn main() {
     let t1 = T { value: 10 };
     let mut t2 = T { value: 10 };

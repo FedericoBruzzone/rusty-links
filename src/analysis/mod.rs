@@ -79,6 +79,7 @@ impl<'tcx, 'a> FirstAnalysis<'tcx, 'a> {
         let visitor = &mut FirstVisitor {
             analyzer: self.analyzer,
             stack_local_def_id: Vec::new(),
+            map_place_rvalue: IndexVec::new(),
         };
 
         // We do not need to call `mir_keys` (self.analyzer.tcx.mir_keys(()))
@@ -97,7 +98,7 @@ impl<'tcx, 'a> FirstAnalysis<'tcx, 'a> {
         // ```
         for local_def_id in self.analyzer.tcx.hir().body_owners() {
             // Visit the body of the `local_def_id`
-            visitor.start_visit(
+            visitor.visit_local_def_id(
                 local_def_id,
                 self.analyzer
                     .tcx
@@ -174,13 +175,19 @@ impl<'tcx, 'a> FirstAnalysis<'tcx, 'a> {
 struct FirstVisitor<'tcx, 'a> {
     analyzer: &'a Analyzer<'tcx>,
 
-    // Current stack of local_def_id and local_decls
+    // Stack of local_def_id and local_decls
     stack_local_def_id: Vec<(LocalDefId, &'a IndexVec<mir::Local, mir::LocalDecl<'tcx>>)>,
+
+    // Map of places and their rvalues
+    // The value can be None when the respective local go out of scope,
+    // thanks to the borrow checker semantic.
+    // See `visit_local` function.
+    map_place_rvalue: IndexVec<mir::Local, Option<mir::Rvalue<'tcx>>>,
 }
 
 // Guardare le tre diverse tipologie di linear: copy move e borrow
 impl<'tcx, 'a> FirstVisitor<'tcx, 'a> {
-    fn start_visit(&mut self, local_def_id: LocalDefId, body: &'a mir::Body<'tcx>) {
+    fn visit_local_def_id(&mut self, local_def_id: LocalDefId, body: &'a mir::Body<'tcx>) {
         self.stack_local_def_id
             .push((local_def_id, &body.local_decls));
         log::debug!("Visiting the local_def_id: {:?}", local_def_id);
@@ -288,11 +295,39 @@ impl<'tcx> Visitor<'tcx> for FirstVisitor<'tcx, '_> {
             TextMod::Green,
         );
         log::trace!("{}", message);
+        self.map_place_rvalue[place.local] = Some(rvalue.clone());
         self.super_assign(place, rvalue, location);
+    }
+
+    fn visit_local(
+        &mut self,
+        local: mir::Local,
+        context: mir::visit::PlaceContext,
+        location: mir::Location,
+    ) {
+        log::trace!(
+            "Visiting the local: {:?}, {:?}, {:?}",
+            local,
+            context,
+            location
+        );
+        match context {
+            mir::visit::PlaceContext::NonUse(non_use_context) => match non_use_context {
+                mir::visit::NonUseContext::StorageDead => self.map_place_rvalue[local] = None,
+                mir::visit::NonUseContext::StorageLive => {
+                    assert!(self.map_place_rvalue[local].is_some())
+                }
+                mir::visit::NonUseContext::AscribeUserTy(_variance) => {}
+                mir::visit::NonUseContext::VarDebugInfo => {}
+            },
+            mir::visit::PlaceContext::NonMutatingUse(_non_mutating_use_context) => todo!(),
+            mir::visit::PlaceContext::MutatingUse(_mutating_use_context) => todo!(),
+        }
     }
 
     // TODO: Add the other from super_statement
 
+    // NOT NEEDED
     // Call by the super_assign
     fn visit_place(
         &mut self,
@@ -330,18 +365,21 @@ impl<'tcx> Visitor<'tcx> for FirstVisitor<'tcx, '_> {
             }
             mir::Rvalue::ThreadLocalRef(def_id) => {
                 message.push_str(format!(" ThreadLocalRef: {:?}", def_id).as_str());
-
             }
             mir::Rvalue::RawPtr(mutability, place) => {
-                message.push_str(
-                    format!(" RawPtr: {:?}, place: {:?}", mutability, place).as_str(),
-                );
+                message.push_str(format!(" RawPtr: {:?}, place: {:?}", mutability, place).as_str());
             }
             mir::Rvalue::Len(place) => {
                 message.push_str(format!(" Len: {:?}", place).as_str());
             }
-            mir::Rvalue::Cast(cast_kind, operand, ty) =>  {
-                message.push_str(format!(" CastKind: {:?}, Operand: {:?}, Ty: {:?}", cast_kind, operand, ty).as_str()),
+            mir::Rvalue::Cast(cast_kind, operand, ty) => {
+                message.push_str(
+                    format!(
+                        " CastKind: {:?}, Operand: {:?}, Ty: {:?}",
+                        cast_kind, operand, ty
+                    )
+                    .as_str(),
+                );
             }
             mir::Rvalue::BinaryOp(bin_op, _) => {
                 message.push_str(format!(" BinOp: {:?}", bin_op).as_str());
@@ -357,8 +395,11 @@ impl<'tcx> Visitor<'tcx> for FirstVisitor<'tcx, '_> {
             }
             mir::Rvalue::Aggregate(aggregate_kind, index_vec) => {
                 message.push_str(
-                    format!(" AggregateKind: {:?}, IndexVec: {:?}", aggregate_kind, index_vec)
-                        .as_str(),
+                    format!(
+                        " AggregateKind: {:?}, IndexVec: {:?}",
+                        aggregate_kind, index_vec
+                    )
+                    .as_str(),
                 );
             }
             mir::Rvalue::ShallowInitBox(operand, ty) => {
