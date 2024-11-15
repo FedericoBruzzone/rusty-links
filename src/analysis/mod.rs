@@ -10,10 +10,11 @@ use rustc_middle::ty;
 use rustc_span::def_id::DefId;
 use rustc_span::def_id::LocalDefId;
 
+type CellRLGraph = Cell<Option<Box<dyn RLGraph<Node = RLNode, Edge = RLEdge, Index = RLIndex>>>>;
 pub struct Analyzer<'tcx> {
     tcx: ty::TyCtxt<'tcx>,
     cli_args: CliArgs,
-    rl_graph: Cell<Option<Box<dyn RLGraph<Node = RLNode, Edge = RLEdge, Index = RLIndex>>>>,
+    rl_graph: CellRLGraph,
 }
 
 impl<'tcx> Analyzer<'tcx> {
@@ -106,9 +107,7 @@ unsafe impl IndexType for RLIndex {
     }
 
     fn max() -> Self {
-        Self {
-            value: usize::MAX,
-        }
+        Self { value: usize::MAX }
     }
 }
 
@@ -120,11 +119,17 @@ impl From<graph::NodeIndex> for RLIndex {
     }
 }
 
+// FIXME
+#[allow(dead_code)]
 trait RLGraphEdge {
     fn weight(&self) -> f32;
     fn set_weight(&mut self, weight: f32);
 }
+// FIXME
+#[allow(dead_code)]
 trait RLGraphNode {}
+// FIXME
+#[allow(dead_code)]
 trait RLGraphIndex {}
 
 impl RLGraphEdge for RLEdge {
@@ -203,6 +208,7 @@ impl<'tcx, 'a> FirstAnalysis<'tcx, 'a> {
             analyzer: self.analyzer,
             stack_local_def_id: Vec::default(),
             map_place_rvalue: FxHashMap::default(),
+            rl_index_map: FxHashMap::default(),
             rl_graph: graph::DiGraph::default(),
         };
 
@@ -262,17 +268,22 @@ where
     // See `visit_local` function.
     map_place_rvalue: rustc_hash::FxHashMap<mir::Local, Option<mir::Rvalue<'tcx>>>,
 
+    // Map from def_id to the index of the node in the graph.
+    // It is used to retrieve the index of the node in the graph
+    // when we need to add an edge.
+    rl_index_map: rustc_hash::FxHashMap<DefId, G::Index>,
+
     // The graph that represents the relations between functions and their calls.
     rl_graph: G,
 }
 
 // Guardare le tre diverse tipologie di linear: copy move e borrow
-impl<'tcx, 'a, G: RLGraph<Node = RLNode, Edge = RLEdge, Index = RLIndex>>
-    FirstVisitor<'tcx, 'a, G>
+impl<'tcx, 'a, G> FirstVisitor<'tcx, 'a, G>
+where
+    G: RLGraph<Node = RLNode, Edge = RLEdge, Index = RLIndex>,
 {
     fn visit_local_def_id(&mut self, local_def_id: LocalDefId, body: &'a mir::Body<'tcx>) {
-        self.rl_graph
-            .rl_add_node(RLNode::new(local_def_id.to_def_id()));
+        let _ = self.add_node_if_needed(local_def_id.to_def_id());
 
         self.stack_local_def_id
             .push((local_def_id.to_def_id(), &body.local_decls));
@@ -288,11 +299,32 @@ impl<'tcx, 'a, G: RLGraph<Node = RLNode, Edge = RLEdge, Index = RLIndex>>
         );
         log::trace!("{}", message);
         self.visit_body(body);
+
+        // Clear map_place_rvalue
+        for (local, _) in body.local_decls.iter_enumerated() {
+            self.map_place_rvalue.remove(&local);
+        }
         self.stack_local_def_id.pop();
+    }
+
+    fn add_node_if_needed(&mut self, def_id: DefId) -> G::Index {
+        if let std::collections::hash_map::Entry::Vacant(entry) = self.rl_index_map.entry(def_id) {
+            let node = RLNode::new(def_id);
+            let index = self.rl_graph.rl_add_node(node);
+            entry.insert(index);
+        }
+        self.rl_index_map[&def_id]
+    }
+
+    fn calculate_edge_weight(&self, _operand: &mir::Operand<'tcx>) -> f32 {
+        1.0
     }
 }
 
-impl<'tcx, G: RLGraph> Visitor<'tcx> for FirstVisitor<'tcx, '_, G> {
+impl<'tcx, G> Visitor<'tcx> for FirstVisitor<'tcx, '_, G>
+where
+    G: RLGraph<Node = RLNode, Edge = RLEdge, Index = RLIndex>,
+{
     // Entry point
     fn visit_body(&mut self, body: &mir::Body<'tcx>) {
         // log::trace!("Visiting the body {:?}", body);
@@ -301,15 +333,7 @@ impl<'tcx, G: RLGraph> Visitor<'tcx> for FirstVisitor<'tcx, '_, G> {
 
     // Call by the super_body
     fn visit_ty(&mut self, ty: ty::Ty<'tcx>, context: mir::visit::TyContext) {
-        let message = self.analyzer.modify_if_needed(
-            format!("Visiting the ty: {:?}, {:?}", ty, context).as_str(),
-            TextMod::Magenta,
-        );
-        log::trace!("{}", message);
-        match ty.kind() {
-            ty::TyKind::FnDef(def_id, _generic_args) => {}
-            _ => self.super_ty(ty),
-        }
+        log::trace!("Visiting the ty: {:?}, {:?}", ty, context);
         // TODO: We should visit the `FnDef` because in `_12 = test_own(move _13) -> [return: bb5, unwind continue];`
         // `test_own` is a `FnDef`.
         self.super_ty(ty);
@@ -392,7 +416,80 @@ impl<'tcx, G: RLGraph> Visitor<'tcx> for FirstVisitor<'tcx, '_, G> {
             TextMod::Green,
         );
         log::trace!("{}", message);
-        self.super_terminator(terminator, location)
+        let mir::Terminator {
+            source_info: _,
+            kind,
+        } = terminator;
+        match kind {
+            mir::TerminatorKind::Call {
+                func,
+                args,
+                destination,
+                ..
+            } => {
+                let message = self.analyzer.modify_if_needed(
+                    format!(
+                        "Visiting the call: {:?}, {:?}, {:?}",
+                        func, args, destination
+                    )
+                    .as_str(),
+                    TextMod::Magenta,
+                );
+                log::trace!("{}", message);
+
+                let fun_def_id = match func {
+                    mir::Operand::Copy(place) => {
+                        self.visit_place(
+                            place,
+                            mir::visit::PlaceContext::NonMutatingUse(
+                                mir::visit::NonMutatingUseContext::Copy,
+                            ),
+                            location,
+                        );
+                        // FIXME: It should return the def_id of the function.
+                        None
+                    }
+                    mir::Operand::Move(place) => {
+                        self.visit_place(
+                            place,
+                            mir::visit::PlaceContext::NonMutatingUse(
+                                mir::visit::NonMutatingUseContext::Move,
+                            ),
+                            location,
+                        );
+                        // FIXME: It should return the def_id of the function.
+                        None
+                    }
+                    mir::Operand::Constant(const_operand) => match const_operand.const_.ty().kind()
+                    {
+                        ty::TyKind::FnDef(def_id, _generic_args) => Some(*def_id),
+                        _ => unreachable!(),
+                    },
+                };
+
+                if let Some(def_id) = fun_def_id {
+                    let i1 = self.add_node_if_needed(def_id);
+                    for arg in args {
+                        let edge_weight = self.calculate_edge_weight(&arg.node);
+                        let i2 = self.rl_index_map[&self.stack_local_def_id.last().unwrap().0];
+                        self.rl_graph.rl_add_edge(
+                            i2,
+                            i1,
+                            RLEdge {
+                                weight: edge_weight,
+                            },
+                        );
+                    }
+                }
+
+                self.visit_place(
+                    destination,
+                    mir::visit::PlaceContext::MutatingUse(mir::visit::MutatingUseContext::Call),
+                    location,
+                );
+            }
+            _ => self.super_terminator(terminator, location),
+        }
     }
 
     // Call by the super_terminator

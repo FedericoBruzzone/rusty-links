@@ -1,3 +1,5 @@
+use std::fmt::Display;
+
 pub enum TextMod {
     Reset,
     // Red,
@@ -14,24 +16,24 @@ pub enum TextMod {
 
 impl TextMod {
     pub fn apply(&self, text: &str) -> String {
-        format!("{}{}{}", self.to_string(), text, TextMod::Reset.to_string())
+        format!("{}{}{}", self, text, TextMod::Reset)
     }
 }
 
-impl ToString for TextMod {
-    fn to_string(&self) -> String {
+impl Display for TextMod {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            TextMod::Reset => "\x1b[0m".to_string(),
-            // TextMod::Red => "\x1b[31m".to_string(),
-            TextMod::Green => "\x1b[32m".to_string(),
-            TextMod::Yellow => "\x1b[33m".to_string(),
-            TextMod::Blue => "\x1b[34m".to_string(),
-            TextMod::Magenta => "\x1b[35m".to_string(),
-            // TextMod::Cyan => "\x1b[36m".to_string(),
-            // TextMod::White => "\x1b[37m".to_string(),
-            // TextMod::Bold => "\x1b[1m".to_string(),
-            // TextMod::Underline => "\x1b[4m".to_string(),
-            // TextMod::Reversed => "\x1b[7m".to_string(),
+            TextMod::Reset => write!(f, "\x1b[0m"),
+            // TextMod::Red => write!(f, "\x1b[31m"),
+            TextMod::Green => write!(f, "\x1b[32m"),
+            TextMod::Yellow => write!(f, "\x1b[33m"),
+            TextMod::Blue => write!(f, "\x1b[34m"),
+            TextMod::Magenta => write!(f, "\x1b[35m"),
+            // TextMod::Cyan => write!(f, "\x1b[36m"),
+            // TextMod::White => write!(f, "\x1b[37m"),
+            // TextMod::Bold => write!(f, "\x1b[1m"),
+            // TextMod::Underline => write!(f, "\x1b[4m"),
+            // TextMod::Reversed => write!(f, "\x1b[7m"),
         }
     }
 }
