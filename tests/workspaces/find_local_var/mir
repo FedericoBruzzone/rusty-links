@@ -1,0 +1,45 @@
+// WARNING: This output format is intended for human consumers only
+// and is subject to change without notice. Knock yourself out.
+fn main() -> () {
+    let mut _0: ();
+    let _1: T;
+    let _2: ();
+    let mut _3: T;
+    scope 1 {
+        debug x => _1;
+    }
+
+    bb0: {
+        StorageLive(_1);
+        _1 = T { value: const 10_i32 };
+        StorageLive(_2);
+        StorageLive(_3);
+        _3 = move _1;
+        _2 = test_own(move _3) -> [return: bb1, unwind continue];
+    }
+
+    bb1: {
+        StorageDead(_3);
+        StorageDead(_2);
+        _0 = const ();
+        StorageDead(_1);
+        return;
+    }
+}
+
+fn test_own(_1: T) -> () {
+    debug t => _1;
+    let mut _0: ();
+    scope 1 {
+    }
+
+    bb0: {
+        _0 = const ();
+        return;
+    }
+}
+digraph {
+    0 [ label="i0: DefId(0:5 ~ find_local_var[010e]::main)"]
+    1 [ label="i1: DefId(0:6 ~ find_local_var[010e]::test_own)"]
+}
+

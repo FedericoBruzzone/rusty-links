@@ -1,22 +1,28 @@
 use crate::{utils::text_mod::TextMod, CliArgs};
 use std::{cell::Cell, time::Duration};
 
-use rustc_hash::FxHashMap;
 // use rustc_index::Idx;
+use rustc_hash::FxHashMap;
 use rustc_index::IndexVec;
 use rustc_middle::mir;
 use rustc_middle::mir::visit::Visitor;
 use rustc_middle::ty;
+use rustc_span::def_id::DefId;
 use rustc_span::def_id::LocalDefId;
 
 pub struct Analyzer<'tcx> {
     tcx: ty::TyCtxt<'tcx>,
     cli_args: CliArgs,
+    rl_graph: Cell<Option<Box<dyn RLGraph<Node = RLNode, Edge = RLEdge, Index = RLIndex>>>>,
 }
 
 impl<'tcx> Analyzer<'tcx> {
     pub fn new(tcx: ty::TyCtxt<'tcx>, cli_args: CliArgs) -> Self {
-        Self { tcx, cli_args }
+        Self {
+            tcx,
+            cli_args,
+            rl_graph: Cell::new(None),
+        }
     }
 
     fn pre_process_cli_args(&self) {
@@ -38,6 +44,10 @@ impl<'tcx> Analyzer<'tcx> {
 
     fn post_process_cli_args(&self) {
         log::debug!("Post-processing CLI arguments");
+        if self.cli_args.print_rl_graph {
+            log::debug!("Printing the RustyLinks graph");
+            self.rl_graph.take().unwrap().print_dot();
+        }
     }
 
     fn modify_if_needed(&self, msg: &str, text_mod: TextMod) -> String {
@@ -63,6 +73,118 @@ impl<'tcx> Analyzer<'tcx> {
     }
 }
 
+use rustworkx_core::petgraph::csr::IndexType;
+use rustworkx_core::petgraph::graph;
+
+#[derive(Debug, Clone)]
+pub struct RLNode {
+    def_id: DefId,
+}
+
+impl RLNode {
+    pub fn new(def_id: DefId) -> Self {
+        Self { def_id }
+    }
+}
+
+#[derive(Debug, Clone)]
+pub struct RLEdge {
+    weight: f32,
+}
+#[derive(Debug, Ord, PartialOrd, Eq, PartialEq, Hash, Default, Copy, Clone)]
+pub struct RLIndex {
+    value: usize,
+}
+
+unsafe impl IndexType for RLIndex {
+    fn new(value: usize) -> Self {
+        Self { value }
+    }
+
+    fn index(&self) -> usize {
+        self.value
+    }
+
+    fn max() -> Self {
+        Self {
+            value: usize::MAX,
+        }
+    }
+}
+
+impl From<graph::NodeIndex> for RLIndex {
+    fn from(node_index: graph::NodeIndex) -> Self {
+        Self {
+            value: node_index.index(),
+        }
+    }
+}
+
+trait RLGraphEdge {
+    fn weight(&self) -> f32;
+    fn set_weight(&mut self, weight: f32);
+}
+trait RLGraphNode {}
+trait RLGraphIndex {}
+
+impl RLGraphEdge for RLEdge {
+    fn weight(&self) -> f32 {
+        self.weight
+    }
+
+    fn set_weight(&mut self, weight: f32) {
+        self.weight = weight;
+    }
+}
+impl RLGraphNode for RLNode {}
+impl RLGraphIndex for RLIndex {}
+
+trait RLGraph {
+    type Node: RLGraphNode;
+    type Edge: RLGraphEdge;
+    type Index: RLGraphIndex;
+
+    fn rl_add_node(&mut self, node: Self::Node) -> Self::Index;
+    fn rl_add_edge(&mut self, source: Self::Index, target: Self::Index, edge: Self::Edge);
+    fn print_dot(&self);
+}
+
+impl RLGraph for graph::DiGraph<RLNode, RLEdge, RLIndex> {
+    type Node = RLNode;
+    type Edge = RLEdge;
+    type Index = RLIndex;
+
+    fn rl_add_node(&mut self, node: Self::Node) -> Self::Index {
+        Self::Index::new(self.add_node(node).index())
+    }
+
+    fn rl_add_edge(&mut self, source: Self::Index, target: Self::Index, edge: Self::Edge) {
+        self.add_edge(source.into(), target.into(), edge);
+    }
+
+    fn print_dot(&self) {
+        use rustworkx_core::petgraph::dot::{Config, Dot};
+
+        let get_node_attr =
+            |_g: &&graph::DiGraph<RLNode, RLEdge, RLIndex>,
+             node: (graph::NodeIndex<RLIndex>, &RLNode)| {
+                let index = node.0.index();
+                let node = node.1;
+                format!("label=\"i{}: {:?}\"", index, node.def_id)
+            };
+
+        println!(
+            "{:?}",
+            Dot::with_attr_getters(
+                &self,
+                &[Config::NodeNoLabel, Config::EdgeNoLabel],
+                &|_g, e| format!("label=\"{:.2}\"", e.weight().weight),
+                &get_node_attr,
+            )
+        )
+    }
+}
+
 struct FirstAnalysis<'tcx, 'a> {
     analyzer: &'a Analyzer<'tcx>,
     elapsed: Cell<Option<Duration>>,
@@ -81,6 +203,7 @@ impl<'tcx, 'a> FirstAnalysis<'tcx, 'a> {
             analyzer: self.analyzer,
             stack_local_def_id: Vec::default(),
             map_place_rvalue: FxHashMap::default(),
+            rl_graph: graph::DiGraph::default(),
         };
 
         // We do not need to call `mir_keys` (self.analyzer.tcx.mir_keys(()))
@@ -109,60 +232,11 @@ impl<'tcx, 'a> FirstAnalysis<'tcx, 'a> {
             // TODO: Check if the body has some promoted MIR.
             // It is not clear if analyzing the promoted MIR is necessary.
             let _promoted_mir = self.analyzer.tcx.promoted_mir(local_def_id.to_def_id());
-
-            // let stmts = &body.basic_blocks[BasicBlock::new(0)].statements;
-            // let terminator = &body.basic_blocks[BasicBlock::new(0)].terminator;
-            // if !stmts.is_empty() {
-            //     let first = &stmts[0].kind;
-            //     match first {
-            //         mir::StatementKind::Assign(bbox) => {
-            //             // let place = &bbox.0;
-            //             let rvalue = &bbox.1;
-            //             match rvalue {
-            //                 mir::Rvalue::Use(operand) => {
-            //                     let op = &operand;
-            //                     match op {
-            //                         mir::Operand::Copy(place) => {
-            //                             println!("{:#?}", place);
-            //                         }
-            //                         mir::Operand::Move(place) => {
-            //                             println!("{:#?}", place);
-            //                         }
-            //                         mir::Operand::Constant(constant) => {
-            //                             println!("hello {:#?}", constant);
-            //                         }
-            //                     }
-            //                 }
-            //                 _ => println!(),
-            //             }
-            //         }
-            //         _ => println!(),
-            //     }
-            // }
-
-            // if let Some(t) = terminator {
-            //     let kind = &t.kind;
-            //     match kind {
-            //         mir::TerminatorKind::Call {
-            //             func,
-            //             args,
-            //             destination,
-            //             ..
-            //         } => {
-            //             println!("{:#?}", func);
-            //             println!("{:#?}", args);
-            //             println!("{:#?}", destination);
-            //         }
-            //         _ => println!(),
-            //     }
-            // }
-            // println!();
-
-            // println!("{:#?}\n", body);
-            // println!("{:#?}\n", promoted_mir);
-            // println!("{:#?}\n", body.local_decls);
-            // println!("{:#?}\n", body.basic_blocks);
         }
+
+        self.analyzer
+            .rl_graph
+            .set(Some(Box::new(visitor.rl_graph.clone())));
     }
 
     pub fn run(&self) {
@@ -173,46 +247,69 @@ impl<'tcx, 'a> FirstAnalysis<'tcx, 'a> {
     }
 }
 
-struct FirstVisitor<'tcx, 'a> {
+struct FirstVisitor<'tcx, 'a, G>
+where
+    G: RLGraph,
+{
     analyzer: &'a Analyzer<'tcx>,
 
     // Stack of local_def_id and local_decls
-    stack_local_def_id: Vec<(LocalDefId, &'a IndexVec<mir::Local, mir::LocalDecl<'tcx>>)>,
+    stack_local_def_id: Vec<(DefId, &'a IndexVec<mir::Local, mir::LocalDecl<'tcx>>)>,
 
     // Map of places and their rvalues
     // The value can be None when the respective local go out of scope,
     // thanks to the borrow checker semantic.
     // See `visit_local` function.
     map_place_rvalue: rustc_hash::FxHashMap<mir::Local, Option<mir::Rvalue<'tcx>>>,
+
+    // The graph that represents the relations between functions and their calls.
+    rl_graph: G,
 }
 
 // Guardare le tre diverse tipologie di linear: copy move e borrow
-impl<'tcx, 'a> FirstVisitor<'tcx, 'a> {
+impl<'tcx, 'a, G: RLGraph<Node = RLNode, Edge = RLEdge, Index = RLIndex>>
+    FirstVisitor<'tcx, 'a, G>
+{
     fn visit_local_def_id(&mut self, local_def_id: LocalDefId, body: &'a mir::Body<'tcx>) {
+        self.rl_graph
+            .rl_add_node(RLNode::new(local_def_id.to_def_id()));
+
         self.stack_local_def_id
-            .push((local_def_id, &body.local_decls));
+            .push((local_def_id.to_def_id(), &body.local_decls));
 
         // It ensures that the local variable is in the map.
         for (local, _) in body.local_decls.iter_enumerated() {
             self.map_place_rvalue.insert(local, None);
         }
 
-        log::debug!("Visiting the local_def_id: {:?}", local_def_id);
+        let message = self.analyzer.modify_if_needed(
+            format!("Visiting the local_def_id: {:?}", local_def_id).as_str(),
+            TextMod::Blue,
+        );
+        log::trace!("{}", message);
         self.visit_body(body);
         self.stack_local_def_id.pop();
     }
 }
 
-impl<'tcx> Visitor<'tcx> for FirstVisitor<'tcx, '_> {
+impl<'tcx, G: RLGraph> Visitor<'tcx> for FirstVisitor<'tcx, '_, G> {
     // Entry point
     fn visit_body(&mut self, body: &mir::Body<'tcx>) {
-        log::trace!("Visiting the body {:?}", body);
+        // log::trace!("Visiting the body {:?}", body);
         self.super_body(body);
     }
 
     // Call by the super_body
     fn visit_ty(&mut self, ty: ty::Ty<'tcx>, context: mir::visit::TyContext) {
-        log::trace!("Visiting the ty: {:?}, {:?}", ty, context);
+        let message = self.analyzer.modify_if_needed(
+            format!("Visiting the ty: {:?}, {:?}", ty, context).as_str(),
+            TextMod::Magenta,
+        );
+        log::trace!("{}", message);
+        match ty.kind() {
+            ty::TyKind::FnDef(def_id, _generic_args) => {}
+            _ => self.super_ty(ty),
+        }
         // TODO: We should visit the `FnDef` because in `_12 = test_own(move _13) -> [return: bb5, unwind continue];`
         // `test_own` is a `FnDef`.
         self.super_ty(ty);
@@ -220,7 +317,11 @@ impl<'tcx> Visitor<'tcx> for FirstVisitor<'tcx, '_> {
 
     // Call by the super_body
     fn visit_basic_block_data(&mut self, block: mir::BasicBlock, data: &mir::BasicBlockData<'tcx>) {
-        log::trace!("Visiting the basic block data: {:?}, {:?}", block, data);
+        let message = self.analyzer.modify_if_needed(
+            format!("Visiting the basic_block_data: {:?}, {:?}", block, data).as_str(),
+            TextMod::Yellow,
+        );
+        log::trace!("{}", message);
         self.super_basic_block_data(block, data);
     }
 
@@ -258,15 +359,29 @@ impl<'tcx> Visitor<'tcx> for FirstVisitor<'tcx, '_> {
         self.super_span(span);
     }
 
-    // TODO: implement
     // Call by the super_body
     fn visit_const_operand(&mut self, constant: &mir::ConstOperand<'tcx>, location: mir::Location) {
+        log::trace!("Visiting the const_operand: {:?}, {:?}", constant, location);
         self.super_const_operand(constant, location);
+    }
+
+    // Call by the super_const_operand
+    fn visit_ty_const(&mut self, ct: ty::Const<'tcx>, location: mir::Location) {
+        let message = self.analyzer.modify_if_needed(
+            format!("Visiting the ty_const: {:?}, {:?}", ct, location).as_str(),
+            TextMod::Magenta,
+        );
+        log::trace!("{}", message);
+        self.super_ty_const(ct, location);
     }
 
     // Call by the super_basic_block_data
     fn visit_statement(&mut self, statement: &mir::Statement<'tcx>, location: mir::Location) {
-        log::trace!("Visiting the statement: {:?}, {:?}", statement, location);
+        let message = self.analyzer.modify_if_needed(
+            format!("Visiting the statement: {:?}, {:?}", statement, location).as_str(),
+            TextMod::Green,
+        );
+        log::trace!("{}", message);
         self.super_statement(statement, location)
     }
 
@@ -280,7 +395,14 @@ impl<'tcx> Visitor<'tcx> for FirstVisitor<'tcx, '_> {
         self.super_terminator(terminator, location)
     }
 
+    // Call by the super_terminator
+    fn visit_operand(&mut self, operand: &mir::Operand<'tcx>, location: mir::Location) {
+        log::trace!("Visiting the operand: {:?}, {:?}", operand, location);
+        self.super_operand(operand, location)
+    }
+
     // Call by the super_statement
+    // Call by the super_terminator
     fn visit_source_info(&mut self, source_info: &mir::SourceInfo) {
         log::trace!("Visiting the source info: {:?}", source_info);
         self.super_source_info(source_info)
@@ -299,47 +421,13 @@ impl<'tcx> Visitor<'tcx> for FirstVisitor<'tcx, '_> {
                 place, rvalue, location
             )
             .as_str(),
-            TextMod::Green,
+            TextMod::Magenta,
         );
         log::trace!("{}", message);
         self.map_place_rvalue
             .insert(place.local, Some(rvalue.clone()));
         self.super_assign(place, rvalue, location);
     }
-
-    fn visit_local(
-        &mut self,
-        local: mir::Local,
-        context: mir::visit::PlaceContext,
-        location: mir::Location,
-    ) {
-        log::trace!(
-            "Visiting the local: {:?}, {:?}, {:?}",
-            local,
-            context,
-            location
-        );
-        match context {
-            mir::visit::PlaceContext::NonUse(non_use_context) => match non_use_context {
-                mir::visit::NonUseContext::StorageDead => {
-                    let _ = self.map_place_rvalue.remove(&local);
-                }
-                mir::visit::NonUseContext::StorageLive => {
-                    // It is not always true that if the map contains the local,
-                    // then the value is not None.
-                    // For intance, the first `bb`` can have a `StorageLive` for a local
-                    // that is only initialized in the local_decls, but never assigned.
-                    assert!(self.map_place_rvalue.contains_key(&local))
-                }
-                mir::visit::NonUseContext::AscribeUserTy(_variance) => {}
-                mir::visit::NonUseContext::VarDebugInfo => {}
-            },
-            mir::visit::PlaceContext::NonMutatingUse(_non_mutating_use_context) => todo!(),
-            mir::visit::PlaceContext::MutatingUse(_mutating_use_context) => todo!(),
-        }
-    }
-
-    // TODO: Add the other from super_statement
 
     // NOT NEEDED
     // Call by the super_assign
@@ -356,6 +444,39 @@ impl<'tcx> Visitor<'tcx> for FirstVisitor<'tcx, '_> {
             location
         );
         self.super_place(place, context, location);
+    }
+
+    // Call by the super_assign
+    fn visit_local(
+        &mut self,
+        local: mir::Local,
+        context: mir::visit::PlaceContext,
+        location: mir::Location,
+    ) {
+        log::trace!(
+            "Visiting the local: {:?}, {:?}, {:?}",
+            local,
+            context,
+            location
+        );
+        match context {
+            mir::visit::PlaceContext::NonUse(non_use_context) => match non_use_context {
+                mir::visit::NonUseContext::StorageDead => {
+                    let _ = self.map_place_rvalue.insert(local, None);
+                }
+                mir::visit::NonUseContext::StorageLive => {
+                    // It is not always true that if the map contains the local,
+                    // then the value is not None.
+                    // For intance, the first `bb`` can have a `StorageLive` for a local
+                    // that is only initialized in the local_decls, but never assigned.
+                    assert!(self.map_place_rvalue.contains_key(&local))
+                }
+                mir::visit::NonUseContext::AscribeUserTy(_variance) => {}
+                mir::visit::NonUseContext::VarDebugInfo => {}
+            },
+            mir::visit::PlaceContext::NonMutatingUse(_non_mutating_use_context) => { /* TODO */ }
+            mir::visit::PlaceContext::MutatingUse(_mutating_use_context) => { /* TODO */ }
+        }
     }
 
     // Call by the super_assign

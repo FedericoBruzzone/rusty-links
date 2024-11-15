@@ -24,6 +24,10 @@ use std::{borrow::Cow, env};
 // detail is up to you.
 #[derive(Parser, Serialize, Deserialize, Debug, Default, Clone)]
 pub struct CliArgs {
+    // Color lor
+    #[clap(long)]
+    color_log: bool,
+
     /// Print the AST of the crate
     #[clap(long)]
     print_crate: bool,
@@ -36,9 +40,9 @@ pub struct CliArgs {
     #[clap(long)]
     print_mir: bool,
 
-    // Color lor
+    // Print RustyLinks graph
     #[clap(long)]
-    color_log: bool,
+    print_rl_graph: bool,
 
     #[clap(last = true)]
     // mytool --allcaps -- some extra args here
