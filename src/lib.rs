@@ -10,9 +10,8 @@ extern crate rustc_middle;
 extern crate rustc_session;
 extern crate rustc_span;
 
-pub mod analysis;
+mod analysis;
 pub mod instrument;
-pub mod utils;
 
 use analysis::Analyzer;
 use clap::Parser;
