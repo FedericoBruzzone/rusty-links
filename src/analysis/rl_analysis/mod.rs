@@ -11,7 +11,7 @@ use std::{cell::Cell, time::Duration};
 
 pub struct RLAnalysis<'tcx, 'a, G>
 where
-    G: RLGraph<Node = RLNode, Edge = RLEdge, Index = RLIndex> + Default + Clone,
+    G: RLGraph + Default + Clone,
 {
     analyzer: &'a Analyzer<'tcx, G>,
     elapsed: Cell<Option<Duration>>,

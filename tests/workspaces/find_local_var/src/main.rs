@@ -9,8 +9,11 @@ fn main() {
     let x = T { value: 10 };
     test_own(x.clone());
 
-    let y = test_own;
+    let y = &test_own;
     y(x);
+
+    let z = test_own;
+    z(x);
 }
 
 fn test_own(t: T) {

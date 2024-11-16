@@ -85,17 +85,37 @@ where
     /// This function assumes that the `local` is a function, so
     /// it panics if it is not.
     fn retrieve_fun_def_id(&self, local: mir::Local) -> DefId {
+        log::debug!("Retrieving the def_id of the function (local: {:?})", local);
         match &self.map_place_rvalue[&local] {
+            // _5 = copy (*_6)
             Some(mir::Rvalue::Use(mir::Operand::Copy(place))) => {
                 self.retrieve_fun_def_id(place.local)
             }
+            // _5 = move _6
             Some(mir::Rvalue::Use(mir::Operand::Move(place))) => {
                 self.retrieve_fun_def_id(place.local)
             }
+            // _5 = &(*10)
+            Some(mir::Rvalue::Ref(_region, _borrow_kind, place)) => {
+                self.retrieve_fun_def_id(place.local)
+            }
+            // _5 = function
+            // _5 = const main::promoted[0]
             Some(mir::Rvalue::Use(mir::Operand::Constant(const_operand))) => {
                 match const_operand.const_.ty().kind() {
                     ty::TyKind::FnDef(def_id, _generic_args) => *def_id,
-                    _ => unreachable!(),
+                    ty::TyKind::Ref(_region, ty, _mutability) => match ty.kind() {
+                        ty::TyKind::FnDef(def_id, _generic_args) => *def_id,
+                        _ => unreachable!(),
+                    },
+                    _ => {
+                        log::error!(
+                            "The local ({:?}) is not a function, but a constant: {:?}",
+                            local,
+                            const_operand.const_.ty()
+                        );
+                        unreachable!()
+                    }
                 }
             }
             _ => unreachable!(),
@@ -234,6 +254,7 @@ where
 
                 let fun_def_id = match func {
                     mir::Operand::Copy(place) => {
+                        let fun_def_id = self.retrieve_fun_def_id(place.local);
                         self.visit_place(
                             place,
                             mir::visit::PlaceContext::NonMutatingUse(
@@ -245,9 +266,10 @@ where
                             "Retrieving the def_id of the function (local: {:?}) that is called",
                             place.local
                         );
-                        self.retrieve_fun_def_id(place.local)
+                        fun_def_id
                     }
                     mir::Operand::Move(place) => {
+                        let fun_def_id = self.retrieve_fun_def_id(place.local);
                         self.visit_place(
                             place,
                             mir::visit::PlaceContext::NonMutatingUse(
@@ -259,7 +281,7 @@ where
                             "Retrieving the def_id of the function (local: {:?}) that is called",
                             place.local
                         );
-                        self.retrieve_fun_def_id(place.local)
+                        fun_def_id
                     }
                     mir::Operand::Constant(const_operand) => match const_operand.const_.ty().kind()
                     {
