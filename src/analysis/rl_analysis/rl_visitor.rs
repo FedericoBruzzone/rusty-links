@@ -13,9 +13,9 @@ use super::Analyzer;
 
 pub struct RLVisitor<'tcx, 'a, G>
 where
-    G: RLGraph,
+    G: RLGraph + Default + Clone,
 {
-    analyzer: &'a Analyzer<'tcx>,
+    analyzer: &'a Analyzer<'tcx, G>,
 
     // Stack of local_def_id and local_decls
     stack_local_def_id: Vec<(DefId, &'a IndexVec<mir::Local, mir::LocalDecl<'tcx>>)>,
@@ -38,9 +38,9 @@ where
 // Guardare le tre diverse tipologie di linear: copy move e borrow
 impl<'tcx, 'a, G> RLVisitor<'tcx, 'a, G>
 where
-    G: RLGraph<Node = RLNode, Edge = RLEdge, Index = RLIndex> + Default,
+    G: RLGraph<Node = RLNode, Edge = RLEdge, Index = RLIndex> + Default + Clone,
 {
-    pub fn new(analyzer: &'a Analyzer<'tcx>) -> Self {
+    pub fn new(analyzer: &'a Analyzer<'tcx, G>) -> Self {
         Self {
             analyzer,
             stack_local_def_id: Vec::default(),
@@ -50,8 +50,8 @@ where
         }
     }
 
-    pub fn rl_graph(&self) -> &G {
-        &self.rl_graph
+    pub fn rl_graph(&self) -> G {
+        self.rl_graph.clone()
     }
 
     pub fn visit_local_def_id(&mut self, local_def_id: LocalDefId, body: &'a mir::Body<'tcx>) {
@@ -95,7 +95,7 @@ where
 
 impl<'tcx, G> Visitor<'tcx> for RLVisitor<'tcx, '_, G>
 where
-    G: RLGraph<Node = RLNode, Edge = RLEdge, Index = RLIndex> + Default,
+    G: RLGraph<Node = RLNode, Edge = RLEdge, Index = RLIndex> + Default + Clone,
 {
     // Entry point
     fn visit_body(&mut self, body: &mir::Body<'tcx>) {

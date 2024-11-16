@@ -10,19 +10,24 @@ use rustc_middle::mir;
 use rustc_middle::ty;
 use std::cell::Cell;
 
-type CellRLGraph = Cell<Option<Box<dyn RLGraph<Node = RLNode, Edge = RLEdge, Index = RLIndex>>>>;
-pub struct Analyzer<'tcx> {
+pub struct Analyzer<'tcx, G>
+where
+    G: RLGraph + Default + Clone,
+{
     tcx: ty::TyCtxt<'tcx>,
     cli_args: CliArgs,
-    rl_graph: CellRLGraph,
+    rl_graph: Cell<G>,
 }
 
-impl<'tcx> Analyzer<'tcx> {
+impl<'tcx, G> Analyzer<'tcx, G>
+where
+    G: RLGraph<Node = RLNode, Edge = RLEdge, Index = RLIndex> + Default + Clone,
+{
     pub fn new(tcx: ty::TyCtxt<'tcx>, cli_args: CliArgs) -> Self {
         Self {
             tcx,
             cli_args,
-            rl_graph: Cell::new(None),
+            rl_graph: Cell::new(G::default()),
         }
     }
 
@@ -47,7 +52,7 @@ impl<'tcx> Analyzer<'tcx> {
         log::debug!("Post-processing CLI arguments");
         if self.cli_args.print_rl_graph {
             log::debug!("Printing the RustyLinks graph");
-            self.rl_graph.take().unwrap().print_dot();
+            self.rl_graph.take().print_dot();
         }
     }
 

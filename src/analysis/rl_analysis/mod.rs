@@ -3,20 +3,25 @@ pub mod rl_petgraph;
 pub mod rl_visitor;
 
 use super::Analyzer;
+use rl_graph::{RLEdge, RLGraph, RLIndex, RLNode};
 use rl_visitor::RLVisitor;
 
+use rustc_middle::ty;
 use std::{cell::Cell, time::Duration};
 
-use rustc_middle::ty;
-use rustworkx_core::petgraph::graph;
-
-pub struct RLAnalysis<'tcx, 'a> {
-    analyzer: &'a Analyzer<'tcx>,
+pub struct RLAnalysis<'tcx, 'a, G>
+where
+    G: RLGraph<Node = RLNode, Edge = RLEdge, Index = RLIndex> + Default + Clone,
+{
+    analyzer: &'a Analyzer<'tcx, G>,
     elapsed: Cell<Option<Duration>>,
 }
 
-impl<'tcx, 'a> RLAnalysis<'tcx, 'a> {
-    pub fn new(analyzer: &'a Analyzer<'tcx>) -> Self {
+impl<'tcx, 'a, G> RLAnalysis<'tcx, 'a, G>
+where
+    G: RLGraph<Node = RLNode, Edge = RLEdge, Index = RLIndex> + Default + Clone,
+{
+    pub fn new(analyzer: &'a Analyzer<'tcx, G>) -> Self {
         Self {
             analyzer,
             elapsed: Cell::new(None),
@@ -24,8 +29,7 @@ impl<'tcx, 'a> RLAnalysis<'tcx, 'a> {
     }
 
     fn visitor(&self) {
-        let visitor: &mut RLVisitor<'tcx, 'a, graph::DiGraph<_, _, _>> =
-            &mut RLVisitor::new(self.analyzer);
+        let visitor = &mut RLVisitor::new(self.analyzer);
 
         // We do not need to call `mir_keys` (self.analyzer.tcx.mir_keys(()))
         // because it returns also the enum and struct constructors
@@ -55,9 +59,7 @@ impl<'tcx, 'a> RLAnalysis<'tcx, 'a> {
             let _promoted_mir = self.analyzer.tcx.promoted_mir(local_def_id.to_def_id());
         }
 
-        self.analyzer
-            .rl_graph
-            .set(Some(Box::new(visitor.rl_graph().clone())));
+        self.analyzer.rl_graph.set(visitor.rl_graph().clone());
     }
 
     pub fn run(&self) {
