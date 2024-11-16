@@ -92,6 +92,9 @@ fn test_own(_1: T) -> () {
         return;
     }
 }
+{_0: None, _2: None, _4: None, _1: None, _3: None}
+{_0: None, _7: None, _4: None, _1: None, _8: None, _5: None, _2: None, _6: None, _3: None}
+{_0: None, _1: None}
 digraph {
     0 [ label="i0: DefId(0:8 ~ find_local_var[010e]::{impl#0}::clone)"]
     1 [ label="i1: DefId(2:2932 ~ core[fc4c]::clone::Clone::clone)"]
@@ -99,6 +102,7 @@ digraph {
     3 [ label="i3: DefId(0:4 ~ find_local_var[010e]::test_own)"]
     0 -> 1 [ label="1.00"]
     2 -> 1 [ label="1.00"]
+    2 -> 3 [ label="1.00"]
     2 -> 3 [ label="1.00"]
 }
 

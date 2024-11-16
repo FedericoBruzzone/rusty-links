@@ -54,6 +54,8 @@ where
         self.rl_graph.clone()
     }
 
+    /// The entry point of the visitor.
+    /// It visits the local_def_id and the body of the function.
     pub fn visit_local_def_id(&mut self, local_def_id: LocalDefId, body: &'a mir::Body<'tcx>) {
         let _ = self.add_node_if_needed(local_def_id.to_def_id());
 
@@ -77,6 +79,27 @@ where
             self.map_place_rvalue.remove(&local);
         }
         self.stack_local_def_id.pop();
+    }
+
+    /// Recursively retrieve the def_id of the function.
+    /// This function assumes that the `local` is a function, so
+    /// it panics if it is not.
+    fn retrieve_fun_def_id(&self, local: mir::Local) -> DefId {
+        match &self.map_place_rvalue[&local] {
+            Some(mir::Rvalue::Use(mir::Operand::Copy(place))) => {
+                self.retrieve_fun_def_id(place.local)
+            }
+            Some(mir::Rvalue::Use(mir::Operand::Move(place))) => {
+                self.retrieve_fun_def_id(place.local)
+            }
+            Some(mir::Rvalue::Use(mir::Operand::Constant(const_operand))) => {
+                match const_operand.const_.ty().kind() {
+                    ty::TyKind::FnDef(def_id, _generic_args) => *def_id,
+                    _ => unreachable!(),
+                }
+            }
+            _ => unreachable!(),
+        }
     }
 
     fn add_node_if_needed(&mut self, def_id: DefId) -> G::Index {
@@ -218,8 +241,11 @@ where
                             ),
                             location,
                         );
-                        // FIXME: It should return the def_id of the function.
-                        None
+                        log::debug!(
+                            "Retrieving the def_id of the function (local: {:?}) that is called",
+                            place.local
+                        );
+                        self.retrieve_fun_def_id(place.local)
                     }
                     mir::Operand::Move(place) => {
                         self.visit_place(
@@ -229,23 +255,25 @@ where
                             ),
                             location,
                         );
-                        // FIXME: It should return the def_id of the function.
-                        None
+                        log::debug!(
+                            "Retrieving the def_id of the function (local: {:?}) that is called",
+                            place.local
+                        );
+                        self.retrieve_fun_def_id(place.local)
                     }
                     mir::Operand::Constant(const_operand) => match const_operand.const_.ty().kind()
                     {
-                        ty::TyKind::FnDef(def_id, _generic_args) => Some(*def_id),
+                        ty::TyKind::FnDef(def_id, _generic_args) => *def_id,
                         _ => unreachable!(),
                     },
                 };
 
-                if let Some(def_id) = fun_def_id {
-                    let i1 = self.add_node_if_needed(def_id);
-                    for arg in args {
-                        let edge_weight = self.calculate_edge_weight(&arg.node);
-                        let i2 = self.rl_index_map[&self.stack_local_def_id.last().unwrap().0];
-                        self.rl_graph.rl_add_edge(i2, i1, RLEdge::new(edge_weight));
-                    }
+                let i1 = self.add_node_if_needed(fun_def_id);
+
+                for arg in args {
+                    let edge_weight = self.calculate_edge_weight(&arg.node);
+                    let i2 = self.rl_index_map[&self.stack_local_def_id.last().unwrap().0];
+                    self.rl_graph.rl_add_edge(i2, i1, RLEdge::new(edge_weight));
                 }
 
                 self.visit_place(
@@ -347,64 +375,82 @@ where
         let mut message = format!("Visiting the rvalue ({:?}, {:?})", rvalue, location);
         match rvalue {
             mir::Rvalue::Use(operand) => {
-                message.push_str(format!(" Operand: {:?}", operand).as_str());
+                match operand {
+                    mir::Operand::Copy(place) => {
+                        message.push_str(format!(" Use: copy operand: {:?}", place).as_str());
+                    }
+                    mir::Operand::Move(place) => {
+                        message.push_str(format!(" Use: operand: {:?}", place).as_str());
+                    }
+                    mir::Operand::Constant(const_operand) => {
+                        message.push_str(format!(" Use: operand: {:?}", const_operand).as_str());
+                    }
+                }
+                // message.push_str(format!(" Use: operand: {:?}", operand).as_str());
             }
             mir::Rvalue::Repeat(operand, _) => {
-                message.push_str(format!(" Operand: {:?}", operand).as_str());
+                message.push_str(format!(" Repeat: operand: {:?}", operand).as_str());
             }
             mir::Rvalue::Ref(region, borrow_kind, place) => {
                 message.push_str(
                     format!(
-                        " Ref: {:?}, borrow_kind: {:?}, place: {:?}",
+                        " Ref: region: {:?}, borrow_kind: {:?}, place: {:?}",
                         region, borrow_kind, place
                     )
                     .as_str(),
                 );
             }
             mir::Rvalue::ThreadLocalRef(def_id) => {
-                message.push_str(format!(" ThreadLocalRef: {:?}", def_id).as_str());
+                message.push_str(format!(" ThreadLocalRef: def_id: {:?}", def_id).as_str());
             }
             mir::Rvalue::RawPtr(mutability, place) => {
-                message.push_str(format!(" RawPtr: {:?}, place: {:?}", mutability, place).as_str());
+                message.push_str(
+                    format!(" RawPtr: mutability: {:?}, place: {:?}", mutability, place).as_str(),
+                );
             }
             mir::Rvalue::Len(place) => {
-                message.push_str(format!(" Len: {:?}", place).as_str());
+                message.push_str(format!(" Len: place: {:?}", place).as_str());
             }
             mir::Rvalue::Cast(cast_kind, operand, ty) => {
                 message.push_str(
                     format!(
-                        " CastKind: {:?}, Operand: {:?}, Ty: {:?}",
+                        " Cast: cast_kind: {:?}, operand: {:?}, ty: {:?}",
                         cast_kind, operand, ty
                     )
                     .as_str(),
                 );
             }
             mir::Rvalue::BinaryOp(bin_op, _) => {
-                message.push_str(format!(" BinOp: {:?}", bin_op).as_str());
+                message.push_str(format!(" BinaryOp: bin_op: {:?}", bin_op).as_str());
             }
             mir::Rvalue::NullaryOp(null_op, ty) => {
-                message.push_str(format!(" NullOp: {:?}, Ty: {:?}", null_op, ty).as_str());
+                message
+                    .push_str(format!(" NullaryOp: null_op: {:?}, ty: {:?}", null_op, ty).as_str());
             }
             mir::Rvalue::UnaryOp(un_op, operand) => {
-                message.push_str(format!(" UnOp: {:?}, Operand: {:?}", un_op, operand).as_str());
+                message.push_str(
+                    format!(" UnaryOp: un_op: {:?}, operand: {:?}", un_op, operand).as_str(),
+                );
             }
             mir::Rvalue::Discriminant(place) => {
-                message.push_str(format!(" Discriminant: {:?}", place).as_str());
+                message.push_str(format!(" Discriminant: place: {:?}", place).as_str());
             }
             mir::Rvalue::Aggregate(aggregate_kind, index_vec) => {
                 message.push_str(
                     format!(
-                        " AggregateKind: {:?}, IndexVec: {:?}",
+                        " Aggregate: aggregate_kind: {:?}, index_vec: {:?}",
                         aggregate_kind, index_vec
                     )
                     .as_str(),
                 );
             }
             mir::Rvalue::ShallowInitBox(operand, ty) => {
-                message.push_str(format!(" ShallowInitBox: {:?}, Ty: {:?}", operand, ty).as_str());
+                message.push_str(
+                    format!(" ShallowInitBox: operand: {:?}, ty: {:?}", operand, ty).as_str(),
+                );
             }
             mir::Rvalue::CopyForDeref(place) => {
-                message.push_str(format!(" CopyForDeref: {:?}", place).as_str());
+                message.push_str(format!(" CopyForDeref: place: {:?}", place).as_str());
             }
         }
         log::trace!("{}", message);
