@@ -6,11 +6,13 @@ use rustc_middle::mir::visit::Visitor;
 use rustc_middle::ty;
 use rustc_span::def_id::DefId;
 use rustc_span::def_id::LocalDefId;
+use rustc_span::source_map::Spanned;
 
 use super::rl_graph::RLGraph;
 use super::rl_graph::{RLEdge, RLIndex, RLNode};
 use super::Analyzer;
 
+#[derive(Debug)]
 enum CallKind {
     Function,
     Closure,
@@ -34,7 +36,7 @@ where
     // Map from def_id to the index of the node in the graph.
     // It is used to retrieve the index of the node in the graph
     // when we need to add an edge.
-    rl_index_map: rustc_hash::FxHashMap<DefId, G::Index>,
+    rl_graph_index_map: rustc_hash::FxHashMap<DefId, G::Index>,
 
     // The graph that represents the relations between functions and their calls.
     rl_graph: G,
@@ -50,7 +52,7 @@ where
             analyzer,
             stack_local_def_id: Vec::default(),
             map_place_rvalue: rustc_hash::FxHashMap::default(),
-            rl_index_map: rustc_hash::FxHashMap::default(),
+            rl_graph_index_map: rustc_hash::FxHashMap::default(),
             rl_graph: G::default(),
         }
     }
@@ -86,31 +88,67 @@ where
         self.stack_local_def_id.pop();
     }
 
+    /// Retrieve the def_id of the function that is called.
+    fn retrieve_call_def_id(&self, func: &mir::Operand<'tcx>) -> (DefId, CallKind) {
+        match func {
+            mir::Operand::Copy(place) => {
+                let (def_id, call_kind) = self.retrieve_fun_def_id(place.local);
+                log::debug!(
+                    "Retrieving the def_id of the function (local: {:?}) that is called",
+                    place.local
+                );
+                (def_id, call_kind)
+            }
+            mir::Operand::Move(place) => {
+                let (def_id, call_kind) = self.retrieve_fun_def_id(place.local);
+                log::debug!(
+                    "Retrieving the def_id of the function (local: {:?}) that is called",
+                    place.local
+                );
+                (def_id, call_kind)
+            }
+            mir::Operand::Constant(const_operand) => {
+                let (def_id, call_kind) = self.retrieve_fun_or_closure_def_id(const_operand);
+                log::debug!(
+                    "Retrieving the def_id {:?} of the {:?} that is called",
+                    def_id,
+                    call_kind
+                );
+                (def_id, call_kind)
+            }
+        }
+    }
+
     /// Recursively retrieve the def_id of the function.
     /// This function assumes that the `local` is a function, so
     /// it panics if it is not.
-    fn retrieve_fun_def_id(&self, local: mir::Local) -> DefId {
-        log::debug!("Retrieving the def_id of the function (local: {:?})", local);
+    ///
+    /// For instance, in the following MIR:
+    /// ```rust,ignore
+    /// bb4: {
+    ///     // ...
+    ///     _11 = test_own;
+    ///    // ...
+    ///    _13 = copy _11;
+    ///    // ...
+    ///    _15 = &_1;
+    ///    _14 = <T as std::clone::Clone>::clone(move _15) -> [return: bb5, unwind continue];
+    /// }
+    /// ```
+    /// The function `test_own` is assigned to the local `_11`.
+    /// The local `_13` is a copy of the local `_11`.
+    /// The local `_15` is a reference to the local `_1`.
+    /// The function `test_own` is then called with the local `_15`.
+    /// At this point, we need to retrieve the def_id of the function `test_own`.
+    fn retrieve_fun_def_id(&self, local: mir::Local) -> (DefId, CallKind) {
         match &self.map_place_rvalue[&local] {
-            // _5 = copy (*_6)
-            Some(mir::Rvalue::Use(mir::Operand::Copy(place))) => {
-                self.retrieve_fun_def_id(place.local)
-            }
-            // _5 = move _6
-            Some(mir::Rvalue::Use(mir::Operand::Move(place))) => {
-                self.retrieve_fun_def_id(place.local)
-            }
-            // _5 = &(*10)
-            Some(mir::Rvalue::Ref(_region, _borrow_kind, place)) => {
-                self.retrieve_fun_def_id(place.local)
-            }
             // _5 = function
             // _5 = const main::promoted[0]
             Some(mir::Rvalue::Use(mir::Operand::Constant(const_operand))) => {
                 match const_operand.const_.ty().kind() {
-                    ty::TyKind::FnDef(def_id, _generic_args) => *def_id,
+                    ty::TyKind::FnDef(def_id, _generic_args) => (*def_id, CallKind::Function),
                     ty::TyKind::Ref(_region, ty, _mutability) => match ty.kind() {
-                        ty::TyKind::FnDef(def_id, _generic_args) => *def_id,
+                        ty::TyKind::FnDef(def_id, _generic_args) => (*def_id, CallKind::Function),
                         _ => unreachable!(),
                     },
                     _ => {
@@ -123,17 +161,133 @@ where
                     }
                 }
             }
+            // _5 = copy (*_6)
+            Some(mir::Rvalue::Use(mir::Operand::Copy(place))) => {
+                self.retrieve_fun_def_id(place.local)
+            }
+            // _5 = move _6
+            Some(mir::Rvalue::Use(mir::Operand::Move(place))) => {
+                self.retrieve_fun_def_id(place.local)
+            }
+            // _5 = &(*10)
+            Some(mir::Rvalue::Ref(_region, _borrow_kind, place)) => {
+                self.retrieve_fun_def_id(place.local)
+            }
             _ => unreachable!(),
         }
     }
 
+    // TODO: Handle Clone
+    /// Retrieve the def_id of the function or closure.
+    ///
+    /// This function assumes that the constant is a function,
+    /// in case it is a closure, it tries to interpret it as a closure.
+    ///
+    /// For instance, in the following MIR:
+    /// ```rust,ignore
+    /// bb5: {
+    ///     _15 = {closure@src/main.rs:18:18: 18:20};
+    ///     _17 = &_15;
+    ///     _18 = ();
+    ///     _16 = <{closure@src/main.rs:18:18: 18:20} as std::ops::Fn<()>>::call(move _17, move _18) -> [return: bb6, unwind continue];
+    /// }
+    /// ```
+    /// In this case the first arguments it `move _17` that is a reference to the closure.
+    fn retrieve_fun_or_closure_def_id(
+        &self,
+        const_operand: &mir::ConstOperand<'tcx>,
+    ) -> (DefId, CallKind) {
+        match const_operand.const_.ty().kind() {
+            ty::TyKind::FnDef(mut def_id, _generic_args) => {
+                let mut call_kind = CallKind::Function;
+                let closure_args = _generic_args.as_closure().args;
+                if closure_args.len() > 0 {
+                    //
+                    if let ty::TyKind::Closure(closure_def_id, _substs) =
+                        closure_args[0].expect_ty().kind()
+                    {
+                        def_id = *closure_def_id;
+                        call_kind = CallKind::Closure;
+                    }
+                }
+
+                (def_id, call_kind)
+            }
+            _ => unreachable!(),
+        }
+    }
+
+    /// Update the arguments of the function call.
+    /// It returns a vector of the arguments.
+    ///
+    /// In case of a function, the arguments are already in the correct format.
+    ///
+    /// In case of a closure, the arguments are in a tuple.
+    /// The first argument is the closure itself.
+    /// The second argument is a tuple of arguments which are passed to the closure.
+    /// A vec of arguments is created by iterating over the tuple.
+    fn update_args(
+        &self,
+        args: &[Spanned<mir::Operand<'tcx>>],
+        call_kind: CallKind,
+    ) -> Vec<mir::Operand<'tcx>> {
+        match call_kind {
+            CallKind::Function => args.iter().map(|arg| arg.node.clone()).collect::<Vec<_>>(),
+            CallKind::Closure => {
+                let args = match &args[1].node {
+                    mir::Operand::Move(place) => {
+                        let tuple = self.map_place_rvalue[&place.local].as_ref().unwrap();
+                        match tuple {
+                            mir::Rvalue::Aggregate(aggregate_kind, index_vec) => {
+                                match **aggregate_kind {
+                                    mir::AggregateKind::Tuple => {
+                                        let mut args = Vec::new();
+                                        for index in index_vec {
+                                            args.push(index.clone())
+                                        }
+                                        args
+                                    }
+                                    _ => unreachable!(),
+                                }
+                            }
+                            _ => unreachable!(),
+                        }
+                    }
+                    _ => unreachable!(),
+                };
+                args
+            }
+        }
+    }
+
+    /// Add an edge between the current visited function and the function that is called.
+    /// The edge is weighted by the arguments of the function call.
+    fn add_edge(&mut self, def_id: DefId, args: Vec<mir::Operand<'tcx>>) {
+        let fun_caller = self.rl_graph_index_map[&self.stack_local_def_id.last().unwrap().0];
+        let fun_callee = self.add_node_if_needed(def_id);
+        let arg_weights = args
+            .iter()
+            .map(|arg| self.resolve_arg_weight(arg))
+            .collect::<Vec<f32>>();
+        let edge = RLEdge::new(arg_weights);
+        self.rl_graph.rl_add_edge(fun_caller, fun_callee, edge);
+    }
+
+    /// Add a node to the graph if it is not already present.
+    /// This function returns the index of the node in the graph.
+    ///
+    /// It can be used also when an edge should be added between the current
+    /// visited function and another function, calling it with the def_id of
+    /// the called function.
     fn add_node_if_needed(&mut self, def_id: DefId) -> G::Index {
-        if let std::collections::hash_map::Entry::Vacant(entry) = self.rl_index_map.entry(def_id) {
+        if let std::collections::hash_map::Entry::Vacant(entry) =
+            self.rl_graph_index_map.entry(def_id)
+        {
             let node = RLNode::new(def_id);
             let index = self.rl_graph.rl_add_node(node);
             entry.insert(index);
         }
-        self.rl_index_map[&def_id]
+        self.rl_graph_index_map[&def_id]
     }
 
     fn resolve_arg_weight(&self, _operand: &mir::Operand<'tcx>) -> f32 {
@@ -257,121 +411,9 @@ where
                 );
                 log::trace!("{}", message);
 
-                let (def_id, call_kind) = match func {
-                    mir::Operand::Copy(place) => {
-                        let def_id = self.retrieve_fun_def_id(place.local);
-                        self.visit_place(
-                            place,
-                            mir::visit::PlaceContext::NonMutatingUse(
-                                mir::visit::NonMutatingUseContext::Copy,
-                            ),
-                            location,
-                        );
-                        log::debug!(
-                            "Retrieving the def_id of the function (local: {:?}) that is called",
-                            place.local
-                        );
-                        (def_id, CallKind::Function)
-                    }
-                    mir::Operand::Move(place) => {
-                        let fun_def_id = self.retrieve_fun_def_id(place.local);
-                        self.visit_place(
-                            place,
-                            mir::visit::PlaceContext::NonMutatingUse(
-                                mir::visit::NonMutatingUseContext::Move,
-                            ),
-                            location,
-                        );
-                        log::debug!(
-                            "Retrieving the def_id of the function (local: {:?}) that is called",
-                            place.local
-                        );
-                        (fun_def_id, CallKind::Function)
-                    }
-                    mir::Operand::Constant(const_operand) => match const_operand.const_.ty().kind()
-                    {
-                        ty::TyKind::FnDef(mut def_id, _generic_args) => {
-                            // We assume that the constant is a function but it can be a closure.
-                            let mut call_kind = CallKind::Function;
-
-                            // Try to interpret the constant as a closure.
-                            //
-                            // Closure example:
-                            // ```rust,ignore
-                            // bb5: {
-                            //     _15 = {closure@src/main.rs:18:18: 18:20};
-                            //     _17 = &_15;
-                            //     _18 = ();
-                            //     _16 = <{closure@src/main.rs:18:18: 18:20} as std::ops::Fn<()>>::call(move _17, move _18) -> [return: bb6, unwind continue];
-                            // }
-                            // ```
-                            // In this case the first arguments it `move _17` that is a reference to the closure.
-                            //
-                            // TODO: Handle Clone
-                            let closure_args = _generic_args.as_closure().args;
-                            if closure_args.len() > 0 {
-                                //
-                                if let ty::TyKind::Closure(closure_def_id, _substs) =
-                                    closure_args[0].expect_ty().kind()
-                                {
-                                    def_id = *closure_def_id;
-                                    call_kind = CallKind::Closure;
-                                }
-                            }
-
-                            match call_kind {
-                                CallKind::Function => {
-                                    log::debug!("The def_id `{:?}` is a function", def_id)
-                                }
-                                CallKind::Closure => {
-                                    log::debug!("The def_id `{:?}` is a closure", def_id)
-                                }
-                            }
-
-                            (def_id, call_kind)
-                        }
-                        _ => unreachable!(),
-                    },
-                };
-
-                let args = if let CallKind::Function = call_kind {
-                    args.iter().map(|arg| arg.node.clone()).collect::<Vec<_>>()
-                } else {
-                    // The first argument is the closure itself.
-                    // The second argument is a tuple of arguments which are passed to the closure.
-                    // A vec of arguments is created by iterating over the tuple.
-                    let args = match &args[1].node {
-                        mir::Operand::Move(place) => {
-                            let tuple = self.map_place_rvalue[&place.local].as_ref().unwrap();
-                            match tuple {
-                                mir::Rvalue::Aggregate(aggregate_kind, index_vec) => {
-                                    match **aggregate_kind {
-                                        mir::AggregateKind::Tuple => {
-                                            let mut args = Vec::new();
-                                            for index in index_vec {
-                                                args.push(index.clone())
-                                            }
-                                            args
-                                        }
-                                        _ => unreachable!(),
-                                    }
-                                }
-                                _ => unreachable!(),
-                            }
-                        }
-                        _ => unreachable!(),
-                    };
-                    args
-                };
-
-                let fun_caller = self.rl_index_map[&self.stack_local_def_id.last().unwrap().0];
-                let fun_callee = self.add_node_if_needed(def_id);
-                let arg_weights = args
-                    .iter()
-                    .map(|arg| self.resolve_arg_weight(arg))
-                    .collect::<Vec<f32>>();
-                let edge = RLEdge::new(arg_weights);
-                self.rl_graph.rl_add_edge(fun_caller, fun_callee, edge);
+                let (def_id, call_kind) = self.retrieve_call_def_id(func);
+                let args = self.update_args(args, call_kind);
+                self.add_edge(def_id, args);
 
                 self.visit_place(
                     destination,
