@@ -11,6 +11,11 @@ use super::rl_graph::RLGraph;
 use super::rl_graph::{RLEdge, RLIndex, RLNode};
 use super::Analyzer;
 
+enum CallKind {
+    Function,
+    Closure,
+}
+
 pub struct RLVisitor<'tcx, 'a, G>
 where
     G: RLGraph + Default + Clone,
@@ -252,9 +257,9 @@ where
                 );
                 log::trace!("{}", message);
 
-                let fun_def_id = match func {
+                let (def_id, call_kind) = match func {
                     mir::Operand::Copy(place) => {
-                        let fun_def_id = self.retrieve_fun_def_id(place.local);
+                        let def_id = self.retrieve_fun_def_id(place.local);
                         self.visit_place(
                             place,
                             mir::visit::PlaceContext::NonMutatingUse(
@@ -266,7 +271,7 @@ where
                             "Retrieving the def_id of the function (local: {:?}) that is called",
                             place.local
                         );
-                        fun_def_id
+                        (def_id, CallKind::Function)
                     }
                     mir::Operand::Move(place) => {
                         let fun_def_id = self.retrieve_fun_def_id(place.local);
@@ -281,20 +286,89 @@ where
                             "Retrieving the def_id of the function (local: {:?}) that is called",
                             place.local
                         );
-                        fun_def_id
+                        (fun_def_id, CallKind::Function)
                     }
                     mir::Operand::Constant(const_operand) => match const_operand.const_.ty().kind()
                     {
-                        ty::TyKind::FnDef(def_id, _generic_args) => *def_id,
+                        ty::TyKind::FnDef(mut def_id, _generic_args) => {
+                            // We assume that the constant is a function but it can be a closure.
+                            let mut call_kind = CallKind::Function;
+
+                            // Try to interpret the constant as a closure.
+                            //
+                            // Closure example:
+                            // ```rust,ignore
+                            // bb5: {
+                            //     _15 = {closure@src/main.rs:18:18: 18:20};
+                            //     _17 = &_15;
+                            //     _18 = ();
+                            //     _16 = <{closure@src/main.rs:18:18: 18:20} as std::ops::Fn<()>>::call(move _17, move _18) -> [return: bb6, unwind continue];
+                            // }
+                            // ```
+                            // In this case the first arguments it `move _17` that is a reference to the closure.
+                            //
+                            // TODO: Handle Clone
+                            let closure_args = _generic_args.as_closure().args;
+                            if closure_args.len() > 0 {
+                                //
+                                if let ty::TyKind::Closure(closure_def_id, _substs) =
+                                    closure_args[0].expect_ty().kind()
+                                {
+                                    def_id = *closure_def_id;
+                                    call_kind = CallKind::Closure;
+                                }
+                            }
+
+                            match call_kind {
+                                CallKind::Function => {
+                                    log::debug!("The def_id `{:?}` is a function", def_id)
+                                }
+                                CallKind::Closure => {
+                                    log::debug!("The def_id `{:?}` is a closure", def_id)
+                                }
+                            }
+
+                            (def_id, call_kind)
+                        }
                         _ => unreachable!(),
                     },
                 };
 
+                let args = if let CallKind::Function = call_kind {
+                    args.iter().map(|arg| arg.node.clone()).collect::<Vec<_>>()
+                } else {
+                    // The first argument is the closure itself.
+                    // The second argument is a tuple of arguments which are passed to the closure.
+                    // A vec of arguments is created by iterating over the tuple.
+                    let args = match &args[1].node {
+                        mir::Operand::Move(place) => {
+                            let tuple = self.map_place_rvalue[&place.local].as_ref().unwrap();
+                            match tuple {
+                                mir::Rvalue::Aggregate(aggregate_kind, index_vec) => {
+                                    match **aggregate_kind {
+                                        mir::AggregateKind::Tuple => {
+                                            let mut args = Vec::new();
+                                            for index in index_vec {
+                                                args.push(index.clone())
+                                            }
+                                            args
+                                        }
+                                        _ => unreachable!(),
+                                    }
+                                }
+                                _ => unreachable!(),
+                            }
+                        }
+                        _ => unreachable!(),
+                    };
+                    args
+                };
+
                 let fun_caller = self.rl_index_map[&self.stack_local_def_id.last().unwrap().0];
-                let fun_callee = self.add_node_if_needed(fun_def_id);
+                let fun_callee = self.add_node_if_needed(def_id);
                 let arg_weights = args
                     .iter()
-                    .map(|arg| self.resolve_arg_weight(&arg.node))
+                    .map(|arg| self.resolve_arg_weight(arg))
                     .collect::<Vec<f32>>();
                 let edge = RLEdge::new(arg_weights);
                 self.rl_graph.rl_add_edge(fun_caller, fun_callee, edge);

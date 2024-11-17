@@ -13,14 +13,14 @@ fn main() {
     y(x.clone());
 
     let z = test_own;
-    z(x);
+    z(x.clone());
 
-    let lambda = || {
+    let lambda = |t: T, t2: T| {
         let x = T { value: 10 };
         test_own(x);
     };
     
-    lambda();
+    lambda(x.clone(), x);
 }
 
 fn test_own(t: T) {
