@@ -1,0 +1,18 @@
+[package]
+name = "simple_project_with_workspace"
+version = "0.1.0"
+edition = "2021"
+
+#[[bin]]
+#name = "main"
+#path = "src/main.rs"
+
+[dependencies]
+crate_a = { path = "crates/crate_a" }
+crate_b = { path = "crates/crate_b" }
+
+[workspace]
+members = [ 
+    "crates/crate_a",
+    "crates/crate_b",
+]
