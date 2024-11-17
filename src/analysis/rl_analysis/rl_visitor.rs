@@ -131,7 +131,7 @@ where
         self.rl_index_map[&def_id]
     }
 
-    fn calculate_edge_weight(&self, _operand: &mir::Operand<'tcx>) -> f32 {
+    fn resolve_arg_weight(&self, _operand: &mir::Operand<'tcx>) -> f32 {
         1.0
     }
 }
@@ -290,13 +290,14 @@ where
                     },
                 };
 
-                let i1 = self.add_node_if_needed(fun_def_id);
-
-                for arg in args {
-                    let edge_weight = self.calculate_edge_weight(&arg.node);
-                    let i2 = self.rl_index_map[&self.stack_local_def_id.last().unwrap().0];
-                    self.rl_graph.rl_add_edge(i2, i1, RLEdge::new(edge_weight));
-                }
+                let fun_caller = self.rl_index_map[&self.stack_local_def_id.last().unwrap().0];
+                let fun_callee = self.add_node_if_needed(fun_def_id);
+                let arg_weights = args
+                    .iter()
+                    .map(|arg| self.resolve_arg_weight(&arg.node))
+                    .collect::<Vec<f32>>();
+                let edge = RLEdge::new(arg_weights);
+                self.rl_graph.rl_add_edge(fun_caller, fun_callee, edge);
 
                 self.visit_place(
                     destination,

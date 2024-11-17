@@ -1,5 +1,7 @@
 use super::rl_graph::RLEdge;
 use super::rl_graph::RLGraph;
+use super::rl_graph::RLGraphEdge;
+use super::rl_graph::RLGraphNode;
 use super::rl_graph::RLIndex;
 use super::rl_graph::RLNode;
 
@@ -55,7 +57,7 @@ impl RLGraph for graph::DiGraph<RLNode, RLEdge, RLIndex> {
             Dot::with_attr_getters(
                 &self,
                 &[Config::NodeNoLabel, Config::EdgeNoLabel],
-                &|_g, e| format!("label=\"{:.2}\"", e.weight().weight()),
+                &|_g, e| format!("label=\"{:.2}\"", e.weight().total_weight()),
                 &get_node_attr,
             )
         )

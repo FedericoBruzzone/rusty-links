@@ -35,18 +35,26 @@ fn main() -> () {
     let _7: ();
     let mut _8: fn(T) {test_own};
     let mut _9: T;
-    let _11: ();
-    let mut _12: fn(T) {test_own};
-    let mut _13: T;
+    let mut _10: &T;
+    let _12: ();
+    let mut _13: fn(T) {test_own};
+    let mut _14: T;
+    let _16: ();
+    let mut _17: &{closure@src/main.rs:18:18: 18:20};
+    let mut _18: ();
     scope 1 {
         debug x => _1;
         let _5: &fn(T) {test_own};
-        let mut _14: &fn(T) {test_own};
+        let mut _19: &fn(T) {test_own};
         scope 2 {
             debug y => _5;
-            let _10: fn(T) {test_own};
+            let _11: fn(T) {test_own};
             scope 3 {
-                debug z => _10;
+                debug z => _11;
+                let _15: {closure@src/main.rs:18:18: 18:20};
+                scope 4 {
+                    debug lambda => _15;
+                }
             }
         }
     }
@@ -70,36 +78,57 @@ fn main() -> () {
         StorageDead(_3);
         StorageDead(_2);
         StorageLive(_5);
-        _14 = const main::promoted[0];
-        _5 = &(*_14);
+        _19 = const main::promoted[0];
+        _5 = &(*_19);
         StorageLive(_7);
         StorageLive(_8);
         _8 = copy (*_5);
         StorageLive(_9);
-        _9 = move _1;
-        _7 = move _8(move _9) -> [return: bb3, unwind continue];
+        StorageLive(_10);
+        _10 = &_1;
+        _9 = <T as std::clone::Clone>::clone(move _10) -> [return: bb3, unwind continue];
     }
 
     bb3: {
-        StorageDead(_9);
-        StorageDead(_8);
-        StorageDead(_7);
-        StorageLive(_10);
-        _10 = test_own;
-        StorageLive(_11);
-        StorageLive(_12);
-        _12 = copy _10;
-        StorageLive(_13);
-        _13 = move _1;
-        _11 = move _12(move _13) -> [return: bb4, unwind continue];
+        StorageDead(_10);
+        _7 = move _8(move _9) -> [return: bb4, unwind continue];
     }
 
     bb4: {
+        StorageDead(_9);
+        StorageDead(_8);
+        StorageDead(_7);
+        StorageLive(_11);
+        _11 = test_own;
+        StorageLive(_12);
+        StorageLive(_13);
+        _13 = copy _11;
+        StorageLive(_14);
+        _14 = move _1;
+        _12 = move _13(move _14) -> [return: bb5, unwind continue];
+    }
+
+    bb5: {
+        StorageDead(_14);
         StorageDead(_13);
         StorageDead(_12);
-        StorageDead(_11);
+        StorageLive(_15);
+        _15 = {closure@src/main.rs:18:18: 18:20};
+        StorageLive(_16);
+        StorageLive(_17);
+        _17 = &_15;
+        StorageLive(_18);
+        _18 = ();
+        _16 = <{closure@src/main.rs:18:18: 18:20} as std::ops::Fn<()>>::call(move _17, move _18) -> [return: bb6, unwind continue];
+    }
+
+    bb6: {
+        StorageDead(_18);
+        StorageDead(_17);
+        StorageDead(_16);
         _0 = const ();
-        StorageDead(_10);
+        StorageDead(_15);
+        StorageDead(_11);
         StorageDead(_5);
         StorageDead(_1);
         return;
@@ -117,6 +146,33 @@ const main::promoted[0]: &fn(T) {test_own} = {
     }
 }
 
+fn main::{closure#0}(_1: &{closure@src/main.rs:18:18: 18:20}) -> () {
+    let mut _0: ();
+    let _2: T;
+    let _3: ();
+    let mut _4: T;
+    scope 1 {
+        debug x => _2;
+    }
+
+    bb0: {
+        StorageLive(_2);
+        _2 = T { value: const 10_i32 };
+        StorageLive(_3);
+        StorageLive(_4);
+        _4 = move _2;
+        _3 = test_own(move _4) -> [return: bb1, unwind continue];
+    }
+
+    bb1: {
+        StorageDead(_4);
+        StorageDead(_3);
+        _0 = const ();
+        StorageDead(_2);
+        return;
+    }
+}
+
 fn test_own(_1: T) -> () {
     debug t => _1;
     let mut _0: ();
@@ -129,14 +185,19 @@ fn test_own(_1: T) -> () {
     }
 }
 digraph {
-    0 [ label="i0: DefId(0:8 ~ find_local_var[010e]::{impl#0}::clone)"]
+    0 [ label="i0: DefId(0:9 ~ find_local_var[010e]::{impl#0}::clone)"]
     1 [ label="i1: DefId(2:2932 ~ core[fc4c]::clone::Clone::clone)"]
     2 [ label="i2: DefId(0:3 ~ find_local_var[010e]::main)"]
-    3 [ label="i3: DefId(0:4 ~ find_local_var[010e]::test_own)"]
+    3 [ label="i3: DefId(0:5 ~ find_local_var[010e]::test_own)"]
+    4 [ label="i4: DefId(2:3704 ~ core[fc4c]::ops::function::Fn::call)"]
+    5 [ label="i5: DefId(0:4 ~ find_local_var[010e]::main::{closure#0})"]
     0 -> 1 [ label="1.00"]
     2 -> 1 [ label="1.00"]
     2 -> 3 [ label="1.00"]
+    2 -> 1 [ label="1.00"]
     2 -> 3 [ label="1.00"]
     2 -> 3 [ label="1.00"]
+    2 -> 4 [ label="2.00"]
+    5 -> 3 [ label="1.00"]
 }
 

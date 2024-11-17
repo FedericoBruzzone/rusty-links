@@ -4,14 +4,13 @@ use rustc_span::def_id::DefId;
 #[allow(dead_code)]
 /// The `RLGraphEdge` trait represents an edge in a graph.
 pub trait RLGraphEdge {
-    fn weight(&self) -> f32;
-    fn set_weight(&mut self, weight: f32);
+    fn total_weight(&self) -> f32;
 }
 
-// FIXME
-#[allow(dead_code)]
 /// The `RLGraphNode` trait represents a node in a graph.
-pub trait RLGraphNode {}
+pub trait RLGraphNode {
+    fn def_id(&self) -> DefId;
+}
 
 // FIXME
 #[allow(dead_code)]
@@ -40,24 +39,42 @@ impl RLNode {
     pub fn new(def_id: DefId) -> Self {
         Self { def_id }
     }
-
-    pub fn def_id(&self) -> DefId {
-        self.def_id
-    }
 }
 
 #[derive(Debug, Clone)]
 pub struct RLEdge {
-    weight: f32,
+    // It represents the weights of the arguments of the function call.
+    // Each weight is associated with an argument, and it is calculated based on the
+    // ownership semantics and the borrowing semantics of the argument.
+    // The weights are used to calculate the total weight of the edge.
+    //
+    // Example:
+    // ```rust,ignore
+    // fn foo(a: i32, b: i32) {}
+    //
+    // fn main() {
+    //     let x = 1;
+    //     let y = 2;
+    //     foo(x, y);
+    // }
+    // ```
+    // The weights of the arguments in this example are both moved, so the total weight of the edge is 2.
+    _arg_weights: Vec<f32>,
+    total_weight: f32,
 }
 
 impl RLEdge {
-    pub fn new(weight: f32) -> Self {
-        Self { weight }
+    pub fn new(_arg_weights: Vec<f32>) -> Self {
+        let total_weight = Self::calc_total_weight(&_arg_weights);
+        Self {
+            _arg_weights,
+            total_weight,
+        }
     }
 
-    pub fn weight(&self) -> f32 {
-        self.weight
+    fn calc_total_weight(arg_weights: &[f32]) -> f32 {
+        // FIXME
+        arg_weights.iter().sum()
     }
 }
 
@@ -77,15 +94,15 @@ impl RLIndex {
 }
 
 impl RLGraphEdge for RLEdge {
-    fn weight(&self) -> f32 {
-        self.weight
-    }
-
-    fn set_weight(&mut self, weight: f32) {
-        self.weight = weight;
+    fn total_weight(&self) -> f32 {
+        self.total_weight
     }
 }
 
-impl RLGraphNode for RLNode {}
+impl RLGraphNode for RLNode {
+    fn def_id(&self) -> DefId {
+        self.def_id
+    }
+}
 
 impl RLGraphIndex for RLIndex {}

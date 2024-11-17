@@ -10,10 +10,17 @@ fn main() {
     test_own(x.clone());
 
     let y = &test_own;
-    y(x);
+    y(x.clone());
 
     let z = test_own;
     z(x);
+
+    let lambda = || {
+        let x = T { value: 10 };
+        test_own(x);
+    };
+    
+    lambda();
 }
 
 fn test_own(t: T) {
