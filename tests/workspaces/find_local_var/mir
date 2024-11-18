@@ -18,7 +18,7 @@ fn <impl at src/main.rs:3:10: 3:15>::clone(_1: &T) -> T {
 
     bb1: {
         StorageDead(_3);
-        _0 = T { value: move _2 };
+        _0 = T { _value: move _2 };
         StorageDead(_2);
         StorageDead(_4);
         return;
@@ -65,7 +65,7 @@ fn main() -> () {
 
     bb0: {
         StorageLive(_1);
-        _1 = T { value: const 10_i32 };
+        _1 = T { _value: const 10_i32 };
         StorageLive(_2);
         StorageLive(_3);
         StorageLive(_4);
@@ -181,7 +181,7 @@ fn main::{closure#0}(_1: &{closure@src/main.rs:18:18: 18:31}, _2: T, _3: T) -> (
 
     bb0: {
         StorageLive(_4);
-        _4 = T { value: const 10_i32 };
+        _4 = T { _value: const 10_i32 };
         StorageLive(_5);
         StorageLive(_6);
         _6 = move _4;

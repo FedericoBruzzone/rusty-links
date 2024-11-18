@@ -2,11 +2,11 @@
 
 #[derive(Clone)]
 struct T {
-    value: i32,
+    _value: i32,
 }
 
 fn main() {
-    let x = T { value: 10 };
+    let x = T { _value: 10 };
     test_own(x.clone());
 
     let y = &test_own;
@@ -16,7 +16,7 @@ fn main() {
     z(x.clone());
 
     let lambda = |t: T, t2: T| {
-        let x = T { value: 10 };
+        let x = T { _value: 10 };
         test_own(x);
     };
     

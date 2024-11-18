@@ -1,5 +1,7 @@
 use crate::analysis::utils::TextMod;
+use crate::analysis::utils::RUSTC_DEPENDENCIES;
 
+use rustc_hir::def_id::DefIndex;
 use rustc_index::IndexVec;
 use rustc_middle::mir;
 use rustc_middle::mir::visit::Visitor;
@@ -12,10 +14,11 @@ use super::rl_graph::RLGraph;
 use super::rl_graph::{RLEdge, RLIndex, RLNode};
 use super::Analyzer;
 
-#[derive(Debug)]
+#[derive(Debug, PartialEq)]
 enum CallKind {
     Function,
     Closure,
+    Unknown,
 }
 
 pub struct RLVisitor<'tcx, 'a, G>
@@ -198,20 +201,57 @@ where
         const_operand: &mir::ConstOperand<'tcx>,
     ) -> (DefId, CallKind) {
         match const_operand.const_.ty().kind() {
-            ty::TyKind::FnDef(mut def_id, _generic_args) => {
-                let mut call_kind = CallKind::Function;
-                let closure_args = _generic_args.as_closure().args;
+            ty::TyKind::FnDef(def_id, generic_args) => {
+                // Check if the def_id is a closure
+                let closure_args = generic_args.as_closure().args;
                 if closure_args.len() > 0 {
-                    //
-                    if let ty::TyKind::Closure(closure_def_id, _substs) =
-                        closure_args[0].expect_ty().kind()
-                    {
-                        def_id = *closure_def_id;
-                        call_kind = CallKind::Closure;
+                    if let Some(ty) = closure_args[0].as_type() {
+                        if let ty::TyKind::Closure(closure_def_id, _substs) = ty.kind() {
+                            return (*closure_def_id, CallKind::Closure);
+                        }
                     }
                 }
 
-                (def_id, call_kind)
+                // Check if the def_id is a local function
+                if def_id.is_local() {
+                    return (*def_id, CallKind::Function);
+                }
+
+                // Check if the def_id is external
+                if !def_id.is_local() {
+                    let def_path = self.analyzer.tcx.def_path(*def_id);
+                    let krate_name = self.analyzer.tcx.crate_name(def_id.krate);
+                    log::error!("The def_id is not local: {:?}", def_path);
+                    log::error!(
+                        "The krate is: {:?}",
+                        self.analyzer.tcx.crate_name(def_id.krate)
+                    );
+
+                    // Check if it is in the core crate
+                    if krate_name == rustc_span::Symbol::intern("core") {
+                        // TODO: Handle Clone
+                        return (*def_id, CallKind::Function);
+                    }
+
+                    // Check if it is in the std crate
+                    if krate_name == rustc_span::Symbol::intern("std") {
+                        return (*def_id, CallKind::Function);
+                    }
+
+                    // Check if it is external but specified as dependency in the Cargo.toml
+                    if !RUSTC_DEPENDENCIES.contains(&krate_name.as_str()) {
+                        return (*def_id, CallKind::Function);
+                    }
+                }
+
+                // The def_id should not be handled
+                (
+                    DefId {
+                        krate: def_id.krate,
+                        index: DefIndex::from_usize(0),
+                    },
+                    CallKind::Unknown,
+                )
             }
             _ => unreachable!(),
         }
@@ -256,6 +296,10 @@ where
                     _ => unreachable!(),
                 };
                 args
+            }
+            CallKind::Unknown => {
+                log::error!("The call kind is unknown");
+                unreachable!()
             }
         }
     }
@@ -412,8 +456,10 @@ where
                 log::trace!("{}", message);
 
                 let (def_id, call_kind) = self.retrieve_call_def_id(func);
-                let args = self.update_args(args, call_kind);
-                self.add_edge(def_id, args);
+                if call_kind != CallKind::Unknown {
+                    let args = self.update_args(args, call_kind);
+                    self.add_edge(def_id, args);
+                }
 
                 self.visit_place(
                     destination,

@@ -31,8 +31,7 @@ pub fn cli_main<T: RustcPlugin>(plugin: T) {
         .other_options(["--all-features".to_string(), "--offline".to_string()])
         .exec()
         .unwrap();
-    let plugin_subdir = format!("plugin-{}", env!("RUSTC_CHANNEL")); // This is set by the build
-                                                                     // script
+    let plugin_subdir = format!("plugin-{}", env!("RUSTC_CHANNEL")); // This is set by the build script
     let target_dir = metadata.target_directory.join(plugin_subdir);
     log::debug!("Target directory: {:?}", target_dir);
 
@@ -116,6 +115,7 @@ pub fn cli_main<T: RustcPlugin>(plugin: T) {
     }
 
     plugin.modify_cargo(&mut cmd, &plugin_args.args);
+    log::debug!("Running command: {:?}", cmd);
 
     let exit_status = cmd.status().expect("failed to wait for cargo?");
 

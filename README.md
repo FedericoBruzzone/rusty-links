@@ -26,7 +26,7 @@ cargo test -- --test-threads=1 --nocapture
 
 ```bash
 cd tests/workspaces/first
-cargo run --manifest-path ../../Cargo.toml --bin cargo-rusty-links [--CARGO_ARG] -- [--PLUGIN_ARG]
+cargo run --manifest-path ../../../Cargo.toml --bin cargo-rusty-links [--CARGO_ARG] -- [--PLUGIN_ARG]
 ```
 
 or

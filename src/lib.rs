@@ -4,6 +4,7 @@ extern crate rustc_ast;
 extern crate rustc_driver;
 extern crate rustc_errors;
 extern crate rustc_hash;
+extern crate rustc_hir;
 extern crate rustc_index;
 extern crate rustc_interface;
 extern crate rustc_middle;
@@ -103,6 +104,8 @@ impl RustcPlugin for RustyLinks {
         compiler_args: Vec<String>,
         plugin_args: Self::Args,
     ) -> rustc_interface::interface::Result<()> {
+        log::debug!("Running plugin with compiler args: {:?}", compiler_args);
+        log::debug!("Running plugin with args: {:?}", plugin_args);
         let mut callbacks = PluginCallbacks { args: plugin_args };
         let compiler = rustc_driver::RunCompiler::new(&compiler_args, &mut callbacks);
         compiler.run()
@@ -153,6 +156,6 @@ impl rustc_driver::Callbacks for PluginCallbacks {
             });
         compiler.sess.dcx().abort_if_errors();
         // FIXME: consider to continue compilation
-        rustc_driver::Compilation::Stop
+        rustc_driver::Compilation::Continue
     }
 }

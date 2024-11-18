@@ -148,7 +148,8 @@ pub fn driver_main<T: RustcPlugin>(plugin: T) {
         let run_plugin = !normal_rustc && (run_on_all_crates || primary_package) && is_target_crate;
 
         if run_plugin {
-            log::debug!("Running plugin...");
+            // FIX: is args[2] always the crate name?
+            log::debug!("Running plugin on crate {}", args[2]);
             let plugin_args: T::Args =
                 serde_json::from_str(&env::var(PLUGIN_ARGS).unwrap_or_default())
                     .unwrap_or_default();
