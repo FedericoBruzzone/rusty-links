@@ -4,6 +4,7 @@ mod utils;
 use crate::CliArgs;
 use rl_analysis::rl_graph::{RLEdge, RLGraph, RLIndex, RLNode};
 use rl_analysis::RLAnalysis;
+use rustc_hir::def_id::LOCAL_CRATE;
 use serde::de::DeserializeOwned;
 use serde::Serialize;
 use utils::{TextMod, RL_SERDE_FOLDER};
@@ -56,7 +57,8 @@ where
 
     fn post_process_cli_args(&self) {
         log::debug!("Post-processing CLI arguments");
-        let rl_graph = self.rl_graph.take();
+        let rl_graph =
+            self.deserialize_rl_graph_from_file(&self.tcx.crate_name(LOCAL_CRATE).to_string());
 
         if self.cli_args.print_rl_graph {
             log::debug!("Printing the RustyLinks graph");
@@ -67,7 +69,6 @@ where
             log::debug!("Printing the serialized RustyLinks graph");
             let serialized = serde_json::to_string(&rl_graph).unwrap();
             println!("{}", serialized);
-            // let deserialized: G = serde_json::from_str(&serialized).unwrap();
         }
     }
 
@@ -79,7 +80,7 @@ where
         }
     }
 
-    fn _deserialize_rl_graph_from_file(&self, krate_name: &str) -> G {
+    fn deserialize_rl_graph_from_file(&self, krate_name: &str) -> G {
         let file_name = format!("{}/{}.rlg", RL_SERDE_FOLDER, krate_name);
         let file = std::fs::File::open(file_name).expect("Failed to open file");
         let rl_graph: G = serde_json::from_reader(file).expect("Failed to deserialize RLGraph");
