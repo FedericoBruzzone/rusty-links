@@ -9,6 +9,7 @@ use rustc_middle::ty;
 use rustc_span::def_id::DefId;
 use rustc_span::def_id::LocalDefId;
 use rustc_span::source_map::Spanned;
+use serde::Serialize;
 
 use super::rl_graph::RLGraph;
 use super::rl_graph::{RLEdge, RLIndex, RLNode};
@@ -23,7 +24,7 @@ enum CallKind {
 
 pub struct RLVisitor<'tcx, 'a, G>
 where
-    G: RLGraph + Default + Clone,
+    G: RLGraph + Default + Clone + Serialize,
 {
     analyzer: &'a Analyzer<'tcx, G>,
 
@@ -48,7 +49,7 @@ where
 // Guardare le tre diverse tipologie di linear: copy move e borrow
 impl<'tcx, 'a, G> RLVisitor<'tcx, 'a, G>
 where
-    G: RLGraph<Node = RLNode, Edge = RLEdge, Index = RLIndex> + Default + Clone,
+    G: RLGraph<Node = RLNode, Edge = RLEdge, Index = RLIndex> + Default + Clone + Serialize,
 {
     pub fn new(analyzer: &'a Analyzer<'tcx, G>) -> Self {
         Self {
@@ -219,13 +220,8 @@ where
 
                 // Check if the def_id is external
                 if !def_id.is_local() {
-                    let def_path = self.analyzer.tcx.def_path(*def_id);
+                    // let def_path = self.analyzer.tcx.def_path(*def_id);
                     let krate_name = self.analyzer.tcx.crate_name(def_id.krate);
-                    log::error!("The def_id is not local: {:?}", def_path);
-                    log::error!(
-                        "The krate is: {:?}",
-                        self.analyzer.tcx.crate_name(def_id.krate)
-                    );
 
                     // Check if it is in the core crate
                     if krate_name == rustc_span::Symbol::intern("core") {
@@ -341,7 +337,7 @@ where
 
 impl<'tcx, G> Visitor<'tcx> for RLVisitor<'tcx, '_, G>
 where
-    G: RLGraph<Node = RLNode, Edge = RLEdge, Index = RLIndex> + Default + Clone,
+    G: RLGraph<Node = RLNode, Edge = RLEdge, Index = RLIndex> + Default + Clone + Serialize,
 {
     // Entry point
     fn visit_body(&mut self, body: &mir::Body<'tcx>) {

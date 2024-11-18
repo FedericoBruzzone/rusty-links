@@ -1,7 +1,7 @@
+use rustc_hir::def_id::{CrateNum, DefIndex};
 use rustc_span::def_id::DefId;
+use serde::{Deserialize, Serialize};
 
-// FIXME
-#[allow(dead_code)]
 /// The `RLGraphEdge` trait represents an edge in a graph.
 pub trait RLGraphEdge {
     fn total_weight(&self) -> f32;
@@ -12,8 +12,7 @@ pub trait RLGraphNode {
     fn def_id(&self) -> DefId;
 }
 
-// FIXME
-#[allow(dead_code)]
+#[allow(unused)]
 /// The `RLGraphIndex` trait represents the index of a node in a graph.
 pub trait RLGraphIndex {}
 
@@ -21,9 +20,9 @@ pub trait RLGraphIndex {}
 /// the edges are of type `RLGraphEdge`, and the indices are of type `RLGraphIndex`.
 /// The graph is mutable, and it is possible to add nodes and edges to it.
 pub trait RLGraph {
-    type Node: RLGraphNode;
-    type Edge: RLGraphEdge;
-    type Index: RLGraphIndex;
+    type Node: RLGraphNode + Serialize;
+    type Edge: RLGraphEdge + Serialize;
+    type Index: RLGraphIndex + Serialize;
 
     fn rl_add_node(&mut self, node: Self::Node) -> Self::Index;
     fn rl_add_edge(&mut self, source: Self::Index, target: Self::Index, edge: Self::Edge);
@@ -41,7 +40,38 @@ impl RLNode {
     }
 }
 
-#[derive(Debug, Clone)]
+impl Serialize for RLNode {
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: serde::Serializer,
+    {
+        serializer.serialize_str(&format!(
+            "{}:{}",
+            self.def_id.krate.as_u32(),
+            self.def_id.index.as_u32()
+        ))
+    }
+}
+
+impl<'de> Deserialize<'de> for RLNode {
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+    where
+        D: serde::Deserializer<'de>,
+    {
+        let s = String::deserialize(deserializer)?;
+        let parts: Vec<&str> = s.split(':').collect();
+        let krate = parts[0].parse().unwrap();
+        let index = parts[1].parse().unwrap();
+        Ok(Self {
+            def_id: DefId {
+                krate: CrateNum::from_u32(krate),
+                index: DefIndex::from_u32(index),
+            },
+        })
+    }
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct RLEdge {
     // It represents the weights of the arguments of the function call.
     // Each weight is associated with an argument, and it is calculated based on the
@@ -78,7 +108,9 @@ impl RLEdge {
     }
 }
 
-#[derive(Debug, Ord, PartialOrd, Eq, PartialEq, Hash, Default, Copy, Clone)]
+#[derive(
+    Debug, Ord, PartialOrd, Eq, PartialEq, Hash, Default, Copy, Clone, Serialize, Deserialize,
+)]
 pub struct RLIndex {
     value: usize,
 }

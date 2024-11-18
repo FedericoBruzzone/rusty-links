@@ -7,11 +7,12 @@ use rl_graph::{RLEdge, RLGraph, RLIndex, RLNode};
 use rl_visitor::RLVisitor;
 
 use rustc_middle::ty;
+use serde::Serialize;
 use std::{cell::Cell, time::Duration};
 
 pub struct RLAnalysis<'tcx, 'a, G>
 where
-    G: RLGraph + Default + Clone,
+    G: RLGraph + Default + Clone + Serialize,
 {
     analyzer: &'a Analyzer<'tcx, G>,
     elapsed: Cell<Option<Duration>>,
@@ -19,7 +20,7 @@ where
 
 impl<'tcx, 'a, G> RLAnalysis<'tcx, 'a, G>
 where
-    G: RLGraph<Node = RLNode, Edge = RLEdge, Index = RLIndex> + Default + Clone,
+    G: RLGraph<Node = RLNode, Edge = RLEdge, Index = RLIndex> + Default + Clone + Serialize,
 {
     pub fn new(analyzer: &'a Analyzer<'tcx, G>) -> Self {
         Self {

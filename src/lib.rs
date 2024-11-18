@@ -44,6 +44,10 @@ pub struct CliArgs {
     #[clap(long)]
     print_rl_graph: bool,
 
+    // Print serialized RustyLinks graph
+    #[clap(long)]
+    print_serialized_rl_graph: bool,
+
     #[clap(last = true)]
     // mytool --allcaps -- some extra args here
     //                     ^^^^^^^^^^^^^^^^^^^^ these are cargo args

@@ -4,6 +4,7 @@ mod utils;
 use crate::CliArgs;
 use rl_analysis::rl_graph::{RLEdge, RLGraph, RLIndex, RLNode};
 use rl_analysis::RLAnalysis;
+use serde::Serialize;
 use utils::TextMod;
 
 use rustc_middle::mir;
@@ -12,7 +13,7 @@ use std::cell::Cell;
 
 pub struct Analyzer<'tcx, G>
 where
-    G: RLGraph + Default + Clone,
+    G: RLGraph + Default + Clone + Serialize,
 {
     tcx: ty::TyCtxt<'tcx>,
     cli_args: CliArgs,
@@ -21,7 +22,7 @@ where
 
 impl<'tcx, G> Analyzer<'tcx, G>
 where
-    G: RLGraph<Node = RLNode, Edge = RLEdge, Index = RLIndex> + Default + Clone,
+    G: RLGraph<Node = RLNode, Edge = RLEdge, Index = RLIndex> + Default + Clone + Serialize,
 {
     pub fn new(tcx: ty::TyCtxt<'tcx>, cli_args: CliArgs) -> Self {
         Self {
@@ -50,9 +51,18 @@ where
 
     fn post_process_cli_args(&self) {
         log::debug!("Post-processing CLI arguments");
+        let rl_graph = self.rl_graph.take();
+
         if self.cli_args.print_rl_graph {
             log::debug!("Printing the RustyLinks graph");
-            self.rl_graph.take().print_dot();
+            rl_graph.print_dot();
+        }
+
+        if self.cli_args.print_serialized_rl_graph {
+            log::debug!("Printing the serialized RustyLinks graph");
+            let serialized = serde_json::to_string(&rl_graph).unwrap();
+            println!("{}", serialized);
+            // let deserialized: G = serde_json::from_str(&serialized).unwrap();
         }
     }
 
