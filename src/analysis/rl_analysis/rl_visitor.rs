@@ -12,6 +12,8 @@ use rustc_span::source_map::Spanned;
 use serde::Serialize;
 
 use super::rl_graph::RLGraph;
+use super::rl_graph::RLGraphEdge;
+use super::rl_graph::RLGraphNode;
 use super::rl_graph::{RLEdge, RLIndex, RLNode};
 use super::Analyzer;
 
@@ -309,7 +311,7 @@ where
             .iter()
             .map(|arg| self.resolve_arg_weight(arg))
             .collect::<Vec<f32>>();
-        let edge = RLEdge::new(arg_weights);
+        let edge = RLEdge::create(arg_weights);
         self.rl_graph.rl_add_edge(fun_caller, fun_callee, edge);
     }
 
@@ -323,7 +325,7 @@ where
         if let std::collections::hash_map::Entry::Vacant(entry) =
             self.rl_graph_index_map.entry(def_id)
         {
-            let node = RLNode::new(def_id);
+            let node = RLNode::create(def_id);
             let index = self.rl_graph.rl_add_node(node);
             entry.insert(index);
         }

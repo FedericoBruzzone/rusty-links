@@ -4,17 +4,23 @@ use serde::{Deserialize, Serialize};
 
 /// The `RLGraphEdge` trait represents an edge in a graph.
 pub trait RLGraphEdge {
+    fn create(_arg_weights: Vec<f32>) -> Self;
+    fn calc_total_weight(arg_weights: &[f32]) -> f32;
     fn total_weight(&self) -> f32;
 }
 
 /// The `RLGraphNode` trait represents a node in a graph.
 pub trait RLGraphNode {
+    fn create(def_id: DefId) -> Self;
     fn def_id(&self) -> DefId;
 }
 
 #[allow(unused)]
 /// The `RLGraphIndex` trait represents the index of a node in a graph.
-pub trait RLGraphIndex {}
+pub trait RLGraphIndex {
+    fn create(value: usize) -> Self;
+    fn value(&self) -> usize;
+}
 
 /// The `RLGraph` trait represents a graph where the nodes are of type `RLGraphNode`,
 /// the edges are of type `RLGraphEdge`, and the indices are of type `RLGraphIndex`.
@@ -34,9 +40,12 @@ pub struct RLNode {
     def_id: DefId,
 }
 
-impl RLNode {
-    pub fn new(def_id: DefId) -> Self {
+impl RLGraphNode for RLNode {
+    fn create(def_id: DefId) -> Self {
         Self { def_id }
+    }
+    fn def_id(&self) -> DefId {
+        self.def_id
     }
 }
 
@@ -93,8 +102,8 @@ pub struct RLEdge {
     total_weight: f32,
 }
 
-impl RLEdge {
-    pub fn new(_arg_weights: Vec<f32>) -> Self {
+impl RLGraphEdge for RLEdge {
+    fn create(_arg_weights: Vec<f32>) -> Self {
         let total_weight = Self::calc_total_weight(&_arg_weights);
         Self {
             _arg_weights,
@@ -106,35 +115,25 @@ impl RLEdge {
         // FIXME
         arg_weights.iter().sum()
     }
+
+    fn total_weight(&self) -> f32 {
+        self.total_weight
+    }
 }
 
 #[derive(
     Debug, Ord, PartialOrd, Eq, PartialEq, Hash, Default, Copy, Clone, Serialize, Deserialize,
 )]
 pub struct RLIndex {
-    value: usize,
+    index: usize,
 }
 
-impl RLIndex {
-    pub fn new(value: usize) -> Self {
-        Self { value }
+impl RLGraphIndex for RLIndex {
+    fn create(index: usize) -> Self {
+        Self { index }
     }
 
-    pub fn value(&self) -> usize {
-        self.value
-    }
-}
-
-impl RLGraphEdge for RLEdge {
-    fn total_weight(&self) -> f32 {
-        self.total_weight
+    fn value(&self) -> usize {
+        self.index
     }
 }
-
-impl RLGraphNode for RLNode {
-    fn def_id(&self) -> DefId {
-        self.def_id
-    }
-}
-
-impl RLGraphIndex for RLIndex {}

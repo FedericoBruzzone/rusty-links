@@ -1,6 +1,7 @@
 use super::rl_graph::RLEdge;
 use super::rl_graph::RLGraph;
 use super::rl_graph::RLGraphEdge;
+use super::rl_graph::RLGraphIndex;
 use super::rl_graph::RLGraphNode;
 use super::rl_graph::RLIndex;
 use super::rl_graph::RLNode;
@@ -10,7 +11,7 @@ use rustworkx_core::petgraph::graph;
 
 unsafe impl IndexType for RLIndex {
     fn new(value: usize) -> Self {
-        RLIndex::new(value)
+        RLIndex::create(value)
     }
 
     fn index(&self) -> usize {
@@ -18,13 +19,13 @@ unsafe impl IndexType for RLIndex {
     }
 
     fn max() -> Self {
-        Self::new(usize::MAX)
+        Self::create(usize::MAX)
     }
 }
 
 impl From<graph::NodeIndex> for RLIndex {
     fn from(node_index: graph::NodeIndex) -> Self {
-        Self::new(node_index.index())
+        Self::create(node_index.index())
     }
 }
 
@@ -34,7 +35,7 @@ impl RLGraph for graph::DiGraph<RLNode, RLEdge, RLIndex> {
     type Index = RLIndex;
 
     fn rl_add_node(&mut self, node: Self::Node) -> Self::Index {
-        Self::Index::new(self.add_node(node).index())
+        Self::Index::create(self.add_node(node).index())
     }
 
     fn rl_add_edge(&mut self, source: Self::Index, target: Self::Index, edge: Self::Edge) {
