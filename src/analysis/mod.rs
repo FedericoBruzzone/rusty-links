@@ -5,37 +5,20 @@ use crate::CliArgs;
 use rl_analysis::rl_graph::{RLEdge, RLGraph, RLIndex, RLNode};
 use rl_analysis::RLAnalysis;
 use rustc_hir::def_id::LOCAL_CRATE;
+use rustc_middle::mir;
+use rustc_middle::ty;
 use serde::de::DeserializeOwned;
 use serde::Serialize;
 use utils::{TextMod, RL_SERDE_FOLDER};
 
-use rustc_middle::mir;
-use rustc_middle::ty;
-use std::cell::Cell;
-
-pub struct Analyzer<'tcx, G>
-where
-    G: RLGraph + Default + Clone + Serialize,
-{
+pub struct Analyzer<'tcx> {
     tcx: ty::TyCtxt<'tcx>,
     cli_args: CliArgs,
-    rl_graph: Cell<G>,
 }
 
-impl<'tcx, G> Analyzer<'tcx, G>
-where
-    G: RLGraph<Node = RLNode, Edge = RLEdge, Index = RLIndex>
-        + Default
-        + Clone
-        + Serialize
-        + DeserializeOwned,
-{
+impl<'tcx> Analyzer<'tcx> {
     pub fn new(tcx: ty::TyCtxt<'tcx>, cli_args: CliArgs) -> Self {
-        Self {
-            tcx,
-            cli_args,
-            rl_graph: Cell::new(G::default()),
-        }
+        Self { tcx, cli_args }
     }
 
     fn pre_process_cli_args(&self) {
@@ -55,9 +38,16 @@ where
         }
     }
 
-    fn post_process_cli_args(&self) {
+    fn post_process_cli_args<G>(&self)
+    where
+        G: RLGraph<Node = RLNode, Edge = RLEdge, Index = RLIndex>
+            + Default
+            + Clone
+            + Serialize
+            + DeserializeOwned,
+    {
         log::debug!("Post-processing CLI arguments");
-        let rl_graph =
+        let rl_graph: G =
             self.deserialize_rl_graph_from_file(&self.tcx.crate_name(LOCAL_CRATE).to_string());
 
         if self.cli_args.print_rl_graph {
@@ -80,7 +70,14 @@ where
         }
     }
 
-    fn deserialize_rl_graph_from_file(&self, krate_name: &str) -> G {
+    fn deserialize_rl_graph_from_file<G>(&self, krate_name: &str) -> G
+    where
+        G: RLGraph<Node = RLNode, Edge = RLEdge, Index = RLIndex>
+            + Default
+            + Clone
+            + Serialize
+            + DeserializeOwned,
+    {
         let file_name = format!("{}/{}.rlg", RL_SERDE_FOLDER, krate_name);
         let file = std::fs::File::open(file_name).expect("Failed to open file");
         let rl_graph: G = serde_json::from_reader(file).expect("Failed to deserialize RLGraph");
@@ -98,6 +95,6 @@ where
         self.run_analysis("FirstAnalysis", |analyzer| {
             RLAnalysis::new(analyzer).run();
         });
-        self.post_process_cli_args();
+        self.post_process_cli_args::<rustworkx_core::petgraph::graph::DiGraph<_, _, _>>();
     }
 }

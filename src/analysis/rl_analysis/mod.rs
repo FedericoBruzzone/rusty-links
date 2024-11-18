@@ -11,24 +11,14 @@ use rustc_middle::ty;
 use serde::{de::DeserializeOwned, Serialize};
 use std::{cell::Cell, time::Duration};
 
-pub struct RLAnalysis<'tcx, 'a, G>
-where
-    G: RLGraph + Default + Clone + Serialize + DeserializeOwned,
-{
-    analyzer: &'a Analyzer<'tcx, G>,
+pub struct RLAnalysis<'tcx, 'a> {
+    analyzer: &'a Analyzer<'tcx>,
     krate_name: String,
     elapsed: Cell<Option<Duration>>,
 }
 
-impl<'tcx, 'a, G> RLAnalysis<'tcx, 'a, G>
-where
-    G: RLGraph<Node = RLNode, Edge = RLEdge, Index = RLIndex>
-        + Default
-        + Clone
-        + Serialize
-        + DeserializeOwned,
-{
-    pub fn new(analyzer: &'a Analyzer<'tcx, G>) -> Self {
+impl<'tcx, 'a> RLAnalysis<'tcx, 'a> {
+    pub fn new(analyzer: &'a Analyzer<'tcx>) -> Self {
         let krate_name = analyzer.tcx.crate_name(LOCAL_CRATE).to_string();
         Self {
             analyzer,
@@ -37,8 +27,15 @@ where
         }
     }
 
-    fn visitor(&self) -> G {
-        let visitor = &mut RLVisitor::new(self.analyzer);
+    fn visitor<G>(&self) -> G
+    where
+        G: RLGraph<Node = RLNode, Edge = RLEdge, Index = RLIndex>
+            + Default
+            + Clone
+            + Serialize
+            + DeserializeOwned,
+    {
+        let visitor: &mut RLVisitor<'tcx, 'a, G> = &mut RLVisitor::new(self.analyzer);
 
         // We do not need to call `mir_keys` (self.analyzer.tcx.mir_keys(()))
         // because it returns also the enum and struct constructors
@@ -71,7 +68,10 @@ where
         visitor.rl_graph().clone()
     }
 
-    fn serialize_rl_graph_to_file(&self, rl_graph: &G) {
+    fn serialize_rl_graph_to_file<G>(&self, rl_graph: &G)
+    where
+        G: RLGraph<Node = RLNode, Edge = RLEdge, Index = RLIndex> + Serialize,
+    {
         std::fs::create_dir_all(RL_SERDE_FOLDER).expect("Failed to create folder");
         let file_name = format!("{}/{}.rlg", RL_SERDE_FOLDER, self.krate_name);
         let file = std::fs::File::create(file_name).expect("Failed to create file");
@@ -80,10 +80,9 @@ where
 
     pub fn run(&self) {
         let start_time = std::time::Instant::now();
-        let rl_graph = self.visitor();
+        let rl_graph = self.visitor::<rustworkx_core::petgraph::graph::DiGraph<_, _, _>>();
         let elapsed = start_time.elapsed();
         self.serialize_rl_graph_to_file(&rl_graph);
-        self.analyzer.rl_graph.set(rl_graph);
         self.elapsed.set(Some(elapsed));
     }
 }

@@ -152,11 +152,7 @@ impl rustc_driver::Callbacks for PluginCallbacks {
             .global_ctxt()
             .expect("Error: global context not found")
             .enter(|tcx: rustc_middle::ty::TyCtxt| {
-                Analyzer::<'tcx, rustworkx_core::petgraph::graph::DiGraph<_, _, _>>::new(
-                    tcx,
-                    self.args.clone(),
-                )
-                .run()
+                Analyzer::<'tcx>::new(tcx, self.args.clone()).run()
             });
         compiler.sess.dcx().abort_if_errors();
         // FIXME: consider to continue compilation

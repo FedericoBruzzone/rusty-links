@@ -29,7 +29,7 @@ pub struct RLVisitor<'tcx, 'a, G>
 where
     G: RLGraph + Default + Clone + Serialize,
 {
-    analyzer: &'a Analyzer<'tcx, G>,
+    analyzer: &'a Analyzer<'tcx>,
 
     // Stack of local_def_id and local_decls
     stack_local_def_id: Vec<(DefId, &'a IndexVec<mir::Local, mir::LocalDecl<'tcx>>)>,
@@ -58,7 +58,7 @@ where
         + Serialize
         + DeserializeOwned,
 {
-    pub fn new(analyzer: &'a Analyzer<'tcx, G>) -> Self {
+    pub fn new(analyzer: &'a Analyzer<'tcx>) -> Self {
         Self {
             analyzer,
             stack_local_def_id: Vec::default(),
