@@ -4,8 +4,9 @@ mod utils;
 use crate::CliArgs;
 use rl_analysis::rl_graph::{RLEdge, RLGraph, RLIndex, RLNode};
 use rl_analysis::RLAnalysis;
+use serde::de::DeserializeOwned;
 use serde::Serialize;
-use utils::TextMod;
+use utils::{TextMod, RL_SERDE_FOLDER};
 
 use rustc_middle::mir;
 use rustc_middle::ty;
@@ -22,7 +23,11 @@ where
 
 impl<'tcx, G> Analyzer<'tcx, G>
 where
-    G: RLGraph<Node = RLNode, Edge = RLEdge, Index = RLIndex> + Default + Clone + Serialize,
+    G: RLGraph<Node = RLNode, Edge = RLEdge, Index = RLIndex>
+        + Default
+        + Clone
+        + Serialize
+        + DeserializeOwned,
 {
     pub fn new(tcx: ty::TyCtxt<'tcx>, cli_args: CliArgs) -> Self {
         Self {
@@ -72,6 +77,13 @@ where
         } else {
             msg.to_string()
         }
+    }
+
+    fn _deserialize_rl_graph_from_file(&self, krate_name: &str) -> G {
+        let file_name = format!("{}/{}.rlg", RL_SERDE_FOLDER, krate_name);
+        let file = std::fs::File::open(file_name).expect("Failed to open file");
+        let rl_graph: G = serde_json::from_reader(file).expect("Failed to deserialize RLGraph");
+        rl_graph
     }
 
     fn run_analysis(&mut self, name: &str, f: impl FnOnce(&Self)) {

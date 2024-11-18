@@ -9,6 +9,7 @@ use rustc_middle::ty;
 use rustc_span::def_id::DefId;
 use rustc_span::def_id::LocalDefId;
 use rustc_span::source_map::Spanned;
+use serde::de::DeserializeOwned;
 use serde::Serialize;
 
 use super::rl_graph::RLGraph;
@@ -51,7 +52,11 @@ where
 // Guardare le tre diverse tipologie di linear: copy move e borrow
 impl<'tcx, 'a, G> RLVisitor<'tcx, 'a, G>
 where
-    G: RLGraph<Node = RLNode, Edge = RLEdge, Index = RLIndex> + Default + Clone + Serialize,
+    G: RLGraph<Node = RLNode, Edge = RLEdge, Index = RLIndex>
+        + Default
+        + Clone
+        + Serialize
+        + DeserializeOwned,
 {
     pub fn new(analyzer: &'a Analyzer<'tcx, G>) -> Self {
         Self {
@@ -339,7 +344,11 @@ where
 
 impl<'tcx, G> Visitor<'tcx> for RLVisitor<'tcx, '_, G>
 where
-    G: RLGraph<Node = RLNode, Edge = RLEdge, Index = RLIndex> + Default + Clone + Serialize,
+    G: RLGraph<Node = RLNode, Edge = RLEdge, Index = RLIndex>
+        + Default
+        + Clone
+        + Serialize
+        + DeserializeOwned,
 {
     // Entry point
     fn visit_body(&mut self, body: &mir::Body<'tcx>) {

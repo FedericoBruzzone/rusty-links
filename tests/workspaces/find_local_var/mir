@@ -208,6 +208,7 @@ fn test_own(_1: T) -> () {
         return;
     }
 }
+["find_local_var"]
 digraph {
     0 [ label="i0: DefId(0:9 ~ find_local_var[010e]::{impl#0}::clone)"]
     1 [ label="i1: DefId(2:2932 ~ core[fc4c]::clone::Clone::clone)"]

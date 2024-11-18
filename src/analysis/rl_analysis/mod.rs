@@ -2,34 +2,42 @@ pub mod rl_graph;
 pub mod rl_petgraph;
 pub mod rl_visitor;
 
-use super::Analyzer;
+use super::{utils::RL_SERDE_FOLDER, Analyzer};
 use rl_graph::{RLEdge, RLGraph, RLIndex, RLNode};
 use rl_visitor::RLVisitor;
 
+use rustc_hir::def_id::LOCAL_CRATE;
 use rustc_middle::ty;
-use serde::Serialize;
+use serde::{de::DeserializeOwned, Serialize};
 use std::{cell::Cell, time::Duration};
 
 pub struct RLAnalysis<'tcx, 'a, G>
 where
-    G: RLGraph + Default + Clone + Serialize,
+    G: RLGraph + Default + Clone + Serialize + DeserializeOwned,
 {
     analyzer: &'a Analyzer<'tcx, G>,
+    krate_name: String,
     elapsed: Cell<Option<Duration>>,
 }
 
 impl<'tcx, 'a, G> RLAnalysis<'tcx, 'a, G>
 where
-    G: RLGraph<Node = RLNode, Edge = RLEdge, Index = RLIndex> + Default + Clone + Serialize,
+    G: RLGraph<Node = RLNode, Edge = RLEdge, Index = RLIndex>
+        + Default
+        + Clone
+        + Serialize
+        + DeserializeOwned,
 {
     pub fn new(analyzer: &'a Analyzer<'tcx, G>) -> Self {
+        let krate_name = analyzer.tcx.crate_name(LOCAL_CRATE).to_string();
         Self {
             analyzer,
+            krate_name,
             elapsed: Cell::new(None),
         }
     }
 
-    fn visitor(&self) {
+    fn visitor(&self) -> G {
         let visitor = &mut RLVisitor::new(self.analyzer);
 
         // We do not need to call `mir_keys` (self.analyzer.tcx.mir_keys(()))
@@ -60,13 +68,22 @@ where
             let _promoted_mir = self.analyzer.tcx.promoted_mir(local_def_id.to_def_id());
         }
 
-        self.analyzer.rl_graph.set(visitor.rl_graph().clone());
+        visitor.rl_graph().clone()
+    }
+
+    fn serialize_rl_graph_to_file(&self, rl_graph: &G) {
+        std::fs::create_dir_all(RL_SERDE_FOLDER).expect("Failed to create folder");
+        let file_name = format!("{}/{}.rlg", RL_SERDE_FOLDER, self.krate_name);
+        let file = std::fs::File::create(file_name).expect("Failed to create file");
+        serde_json::to_writer(file, rl_graph).expect("Failed to serialize RLGraph");
     }
 
     pub fn run(&self) {
         let start_time = std::time::Instant::now();
-        self.visitor();
+        let rl_graph = self.visitor();
         let elapsed = start_time.elapsed();
+        self.serialize_rl_graph_to_file(&rl_graph);
+        self.analyzer.rl_graph.set(rl_graph);
         self.elapsed.set(Some(elapsed));
     }
 }

@@ -22,6 +22,8 @@ pub const RUSTC_DEPENDENCIES: [&str; 19] = [
     "panic_unwind",
 ];
 
+pub const RL_SERDE_FOLDER: &str = ".rl_serde";
+
 pub enum TextMod {
     Reset,
     // Red,
