@@ -1,4 +1,4 @@
-mod rl_analysis;
+pub mod rl_analysis;
 mod utils;
 
 use crate::CliArgs;

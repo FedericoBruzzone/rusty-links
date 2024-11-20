@@ -12,7 +12,7 @@ pub trait RLGraphEdge {
 /// The `RLGraphNode` trait represents a node in a graph.
 pub trait RLGraphNode {
     fn create(def_id: DefId) -> Self;
-    fn def_id(&self) -> DefId;
+    fn def_id_str(&self) -> String;
 }
 
 #[allow(unused)]
@@ -32,20 +32,43 @@ pub trait RLGraph {
 
     fn rl_add_node(&mut self, node: Self::Node) -> Self::Index;
     fn rl_add_edge(&mut self, source: Self::Index, target: Self::Index, edge: Self::Edge);
+    fn merge(&mut self, other: &Self);
     fn print_dot(&self);
 }
 
 #[derive(Debug, Clone)]
 pub struct RLNode {
     def_id: DefId,
+    def_id_str: String,
+}
+
+impl PartialEq for RLNode {
+    // This implementation is necessary because the `RLNode` for merge correctly the graphs.
+    // def_id_str_1 -> DefId(20:4 ~ crate_a[132e]::add)
+    // def_id_str_2 -> DefId(0:4  ~ crate_a[132e]::add)
+    //                            ^^^^^^^^^^^^^^^^^^^^
+    // The `def_id_str` contains the crate name, so we need to compare only this part in order to
+    // merge the graphs correctly.
+    // This is caused by the fact that when we analyze a call to a function `add` from the `crate_X`
+    // and the declaration of the function `add` in the `crate_a`, the `def_id` is different but
+    // we can check if the function is the same by comparing the `def_id_str` the part after the
+    // `~` character.
+    fn eq(&self, other: &Self) -> bool {
+        let def_id_str_1 = self.def_id_str();
+        let def_id_str_2 = other.def_id_str();
+        def_id_str_1.split('~').collect::<Vec<_>>()[1]
+            == def_id_str_2.split('~').collect::<Vec<_>>()[1]
+    }
 }
 
 impl RLGraphNode for RLNode {
     fn create(def_id: DefId) -> Self {
-        Self { def_id }
+        let def_id_str = format!("{:?}", def_id);
+        Self { def_id, def_id_str }
     }
-    fn def_id(&self) -> DefId {
-        self.def_id
+
+    fn def_id_str(&self) -> String {
+        self.def_id_str.clone()
     }
 }
 
@@ -55,9 +78,10 @@ impl Serialize for RLNode {
         S: serde::Serializer,
     {
         serializer.serialize_str(&format!(
-            "{}:{}",
+            "{}:{}:{}",
             self.def_id.krate.as_u32(),
-            self.def_id.index.as_u32()
+            self.def_id.index.as_u32(),
+            self.def_id_str
         ))
     }
 }
@@ -71,16 +95,20 @@ impl<'de> Deserialize<'de> for RLNode {
         let parts: Vec<&str> = s.split(':').collect();
         let krate = parts[0].parse().unwrap();
         let index = parts[1].parse().unwrap();
+        // We need to join the rest of the parts because the def_id_str can contain ':' characters.
+        // And remove the last character because it is a trailing '"' character.
+        let def_id_str = parts[2..].join(":");
         Ok(Self {
             def_id: DefId {
                 krate: CrateNum::from_u32(krate),
                 index: DefIndex::from_u32(index),
             },
+            def_id_str,
         })
     }
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct RLEdge {
     // It represents the weights of the arguments of the function call.
     // Each weight is associated with an argument, and it is calculated based on the

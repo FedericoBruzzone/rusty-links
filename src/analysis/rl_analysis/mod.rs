@@ -78,6 +78,26 @@ impl<'tcx, 'a> RLAnalysis<'tcx, 'a> {
         serde_json::to_writer(file, rl_graph).expect("Failed to serialize RLGraph");
     }
 
+    pub fn merge_all_rl_graphs<G>()
+    where
+        G: RLGraph<Node = RLNode, Edge = RLEdge, Index = RLIndex>
+            + Default
+            + Clone
+            + DeserializeOwned,
+    {
+        let mut merged_rl_graph: G = G::default();
+        let rl_graphs = std::fs::read_dir(RL_SERDE_FOLDER).expect("Failed to read folder");
+
+        for rl_graph in rl_graphs {
+            let rl_graph = rl_graph.expect("Failed to read file");
+            let file = std::fs::File::open(rl_graph.path()).expect("Failed to open file");
+            let rl_graph: G = serde_json::from_reader(file).expect("Failed to deserialize RLGraph");
+            merged_rl_graph.merge(&rl_graph);
+        }
+
+        merged_rl_graph.print_dot();
+    }
+
     pub fn run(&self) {
         let start_time = std::time::Instant::now();
         let rl_graph = self.visitor::<rustworkx_core::petgraph::graph::DiGraph<_, _, _>>();

@@ -14,7 +14,7 @@ extern crate rustc_span;
 mod analysis;
 pub mod instrument;
 
-use analysis::Analyzer;
+use analysis::{rl_analysis::RLAnalysis, Analyzer};
 use clap::Parser;
 use instrument::{CrateFilter, RustcPlugin, RustcPluginArgs, Utf8Path};
 use serde::{Deserialize, Serialize};
@@ -61,7 +61,7 @@ pub struct RustyLinks;
 impl RustyLinks {
     pub fn after_exec() {
         log::debug!("After exec");
-        println!("After exec");
+        RLAnalysis::merge_all_rl_graphs::<rustworkx_core::petgraph::graph::DiGraph<_, _, _>>();
     }
 }
 
@@ -161,7 +161,6 @@ impl rustc_driver::Callbacks for PluginCallbacks {
             .enter(|tcx: rustc_middle::ty::TyCtxt| {
                 Analyzer::<'tcx>::new(tcx, self.args.clone()).run()
             });
-
         compiler.sess.dcx().abort_if_errors();
         rustc_driver::Compilation::Continue
     }
