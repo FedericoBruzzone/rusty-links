@@ -2,60 +2,60 @@
 // and is subject to change without notice. Knock yourself out.
 // WARNING: This output format is intended for human consumers only
 // and is subject to change without notice. Knock yourself out.
-fn sub(_1: u64, _2: u64) -> u64 {
 fn add(_1: u64, _2: u64) -> u64 {
     debug left => _1;
+    debug right => _2;
+    let mut _0: u64;
+    let mut _3: u64;
+    let mut _4: u64;
+    let mut _5: (u64, bool);
+
+fn sub(_1: u64, _2: u64) -> u64 {
     debug left => _1;
     debug right => _2;
     let mut _0: u64;
     let mut _3: u64;
-    debug right => _2;
-    let mut _0: u64;
     let mut _4: u64;
-    let mut _3: u64;
     let mut _5: (u64, bool);
-    let mut _4: u64;
 
     bb0: {
-    let mut _5: (u64, bool);
-
         StorageLive(_3);
     bb0: {
+        StorageLive(_3);
         _3 = copy _1;
-        StorageLive(_3);
+        StorageLive(_4);
+        _3 = copy _1;
         StorageLive(_4);
         _4 = copy _2;
         _5 = SubWithOverflow(copy _3, copy _4);
-        _3 = copy _1;
-        StorageLive(_4);
         _4 = copy _2;
         _5 = AddWithOverflow(copy _3, copy _4);
         assert(!move (_5.1: bool), "attempt to compute `{} + {}`, which would overflow", move _3, move _4) -> [success: bb1, unwind continue];
-    }
-
         assert(!move (_5.1: bool), "attempt to compute `{} - {}`, which would overflow", move _3, move _4) -> [success: bb1, unwind continue];
     }
-    bb1: {
-        _0 = move (_5.0: u64);
-        StorageDead(_4);
-        StorageDead(_3);
+    }
+
 
     bb1: {
-        return;
         _0 = move (_5.0: u64);
         StorageDead(_4);
         StorageDead(_3);
         return;
     }
 }
+    bb1: {
+        _0 = move (_5.0: u64);
+        StorageDead(_4);
+        StorageDead(_3);
+        return;
     }
 }
-digraph {
-    0 [ label="i0: DefId(0:3 ~ crate_b[d3ba]::sub)"]
-}
-
 digraph {
     0 [ label="i0: DefId(0:3 ~ crate_a[132e]::add)"]
+}
+
+digraph {
+    0 [ label="i0: DefId(0:3 ~ crate_b[d3ba]::sub)"]
 }
 
 // WARNING: This output format is intended for human consumers only
@@ -138,3 +138,4 @@ digraph {
     0 -> 4 [ label="1.00"]
 }
 
+Workspace members: [Package { name: "crate_a", version: Version { major: 0, minor: 1, patch: 0 }, authors: [], id: PackageId { repr: "path+file:///home/fcb/dev/rusty-links/tests/workspaces/simple_project_with_workspace/crates/crate_a#0.1.0" }, source: None, description: None, dependencies: [], license: None, license_file: None, targets: [Target { name: "crate_a", kind: ["lib"], crate_types: ["lib"], required_features: [], src_path: "/home/fcb/dev/rusty-links/tests/workspaces/simple_project_with_workspace/crates/crate_a/src/lib.rs", edition: "2021", doctest: true, test: true, doc: true }], features: {}, manifest_path: "/home/fcb/dev/rusty-links/tests/workspaces/simple_project_with_workspace/crates/crate_a/Cargo.toml", categories: [], keywords: [], readme: None, repository: None, homepage: None, documentation: None, edition: "2021", metadata: Null, links: None, publish: None, default_run: None, rust_version: None }, Package { name: "crate_b", version: Version { major: 0, minor: 1, patch: 0 }, authors: [], id: PackageId { repr: "path+file:///home/fcb/dev/rusty-links/tests/workspaces/simple_project_with_workspace/crates/crate_b#0.1.0" }, source: None, description: None, dependencies: [], license: None, license_file: None, targets: [Target { name: "crate_b", kind: ["lib"], crate_types: ["lib"], required_features: [], src_path: "/home/fcb/dev/rusty-links/tests/workspaces/simple_project_with_workspace/crates/crate_b/src/lib.rs", edition: "2021", doctest: true, test: true, doc: true }], features: {}, manifest_path: "/home/fcb/dev/rusty-links/tests/workspaces/simple_project_with_workspace/crates/crate_b/Cargo.toml", categories: [], keywords: [], readme: None, repository: None, homepage: None, documentation: None, edition: "2021", metadata: Null, links: None, publish: None, default_run: None, rust_version: None }, Package { name: "simple_project_with_workspace", version: Version { major: 0, minor: 1, patch: 0 }, authors: [], id: PackageId { repr: "path+file:///home/fcb/dev/rusty-links/tests/workspaces/simple_project_with_workspace#0.1.0" }, source: None, description: None, dependencies: [Dependency { name: "crate_a", source: None, req: VersionReq { comparators: [] }, kind: Normal, optional: false, uses_default_features: true, features: [], target: None, rename: None, registry: None, path: Some("/home/fcb/dev/rusty-links/tests/workspaces/simple_project_with_workspace/crates/crate_a") }, Dependency { name: "crate_b", source: None, req: VersionReq { comparators: [] }, kind: Normal, optional: false, uses_default_features: true, features: [], target: None, rename: None, registry: None, path: Some("/home/fcb/dev/rusty-links/tests/workspaces/simple_project_with_workspace/crates/crate_b") }], license: None, license_file: None, targets: [Target { name: "simple_project_with_workspace", kind: ["bin"], crate_types: ["bin"], required_features: [], src_path: "/home/fcb/dev/rusty-links/tests/workspaces/simple_project_with_workspace/src/main.rs", edition: "2021", doctest: false, test: true, doc: true }], features: {}, manifest_path: "/home/fcb/dev/rusty-links/tests/workspaces/simple_project_with_workspace/Cargo.toml", categories: [], keywords: [], readme: None, repository: None, homepage: None, documentation: None, edition: "2021", metadata: Null, links: None, publish: None, default_run: None, rust_version: None }]

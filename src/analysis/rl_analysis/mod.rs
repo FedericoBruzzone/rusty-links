@@ -1,6 +1,6 @@
 pub mod rl_graph;
-pub mod rl_petgraph;
-pub mod rl_visitor;
+mod rl_petgraph;
+mod rl_visitor;
 
 use super::{utils::RL_SERDE_FOLDER, Analyzer};
 use rl_graph::{RLEdge, RLGraph, RLIndex, RLNode};
@@ -82,7 +82,7 @@ impl<'tcx, 'a> RLAnalysis<'tcx, 'a> {
         let start_time = std::time::Instant::now();
         let rl_graph = self.visitor::<rustworkx_core::petgraph::graph::DiGraph<_, _, _>>();
         let elapsed = start_time.elapsed();
-        self.serialize_rl_graph_to_file(&rl_graph);
         self.elapsed.set(Some(elapsed));
+        self.serialize_rl_graph_to_file(&rl_graph);
     }
 }

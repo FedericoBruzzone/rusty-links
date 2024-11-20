@@ -20,6 +20,8 @@ fn main() {
         test_own(x);
     };
     
+    test_own(x.clone());
+
     lambda(x.clone(), x);
 }
 

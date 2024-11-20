@@ -41,15 +41,18 @@ fn main() -> () {
     let mut _14: T;
     let mut _15: &T;
     let _17: ();
-    let mut _18: &{closure@src/main.rs:18:18: 18:31};
-    let mut _19: (T, T);
-    let mut _20: T;
-    let mut _21: &T;
-    let mut _22: T;
+    let mut _18: T;
+    let mut _19: &T;
+    let _20: ();
+    let mut _21: &{closure@src/main.rs:18:18: 18:31};
+    let mut _22: (T, T);
+    let mut _23: T;
+    let mut _24: &T;
+    let mut _25: T;
     scope 1 {
         debug x => _1;
         let _5: &fn(T) {test_own};
-        let mut _23: &fn(T) {test_own};
+        let mut _26: &fn(T) {test_own};
         scope 2 {
             debug y => _5;
             let _11: fn(T) {test_own};
@@ -82,8 +85,8 @@ fn main() -> () {
         StorageDead(_3);
         StorageDead(_2);
         StorageLive(_5);
-        _23 = const main::promoted[0];
-        _5 = &(*_23);
+        _26 = const main::promoted[0];
+        _5 = &(*_26);
         StorageLive(_7);
         StorageLive(_8);
         _8 = copy (*_5);
@@ -126,28 +129,43 @@ fn main() -> () {
         _16 = {closure@src/main.rs:18:18: 18:31};
         StorageLive(_17);
         StorageLive(_18);
-        _18 = &_16;
         StorageLive(_19);
-        StorageLive(_20);
-        StorageLive(_21);
-        _21 = &_1;
-        _20 = <T as std::clone::Clone>::clone(move _21) -> [return: bb7, unwind continue];
+        _19 = &_1;
+        _18 = <T as std::clone::Clone>::clone(move _19) -> [return: bb7, unwind continue];
     }
 
     bb7: {
-        StorageDead(_21);
-        StorageLive(_22);
-        _22 = move _1;
-        _19 = (move _20, move _22);
-        _17 = <{closure@src/main.rs:18:18: 18:31} as std::ops::Fn<(T, T)>>::call(move _18, move _19) -> [return: bb8, unwind continue];
+        StorageDead(_19);
+        _17 = test_own(move _18) -> [return: bb8, unwind continue];
     }
 
     bb8: {
-        StorageDead(_22);
-        StorageDead(_20);
-        StorageDead(_19);
         StorageDead(_18);
         StorageDead(_17);
+        StorageLive(_20);
+        StorageLive(_21);
+        _21 = &_16;
+        StorageLive(_22);
+        StorageLive(_23);
+        StorageLive(_24);
+        _24 = &_1;
+        _23 = <T as std::clone::Clone>::clone(move _24) -> [return: bb9, unwind continue];
+    }
+
+    bb9: {
+        StorageDead(_24);
+        StorageLive(_25);
+        _25 = move _1;
+        _22 = (move _23, move _25);
+        _20 = <{closure@src/main.rs:18:18: 18:31} as std::ops::Fn<(T, T)>>::call(move _21, move _22) -> [return: bb10, unwind continue];
+    }
+
+    bb10: {
+        StorageDead(_25);
+        StorageDead(_23);
+        StorageDead(_22);
+        StorageDead(_21);
+        StorageDead(_20);
         _0 = const ();
         StorageDead(_16);
         StorageDead(_11);
@@ -208,7 +226,6 @@ fn test_own(_1: T) -> () {
         return;
     }
 }
-["find_local_var"]
 digraph {
     0 [ label="i0: DefId(0:9 ~ find_local_var[010e]::{impl#0}::clone)"]
     1 [ label="i1: DefId(2:2932 ~ core[fc4c]::clone::Clone::clone)"]
@@ -216,6 +233,8 @@ digraph {
     3 [ label="i3: DefId(0:5 ~ find_local_var[010e]::test_own)"]
     4 [ label="i4: DefId(0:4 ~ find_local_var[010e]::main::{closure#0})"]
     0 -> 1 [ label="1.00"]
+    2 -> 1 [ label="1.00"]
+    2 -> 3 [ label="1.00"]
     2 -> 1 [ label="1.00"]
     2 -> 3 [ label="1.00"]
     2 -> 1 [ label="1.00"]

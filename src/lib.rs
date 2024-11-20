@@ -58,6 +58,13 @@ pub struct CliArgs {
 // and it must be exported for use by the CLI/driver binaries.
 pub struct RustyLinks;
 
+impl RustyLinks {
+    pub fn after_exec() {
+        log::debug!("After exec");
+        println!("After exec");
+    }
+}
+
 impl RustcPlugin for RustyLinks {
     type Args = CliArgs;
 
@@ -154,8 +161,8 @@ impl rustc_driver::Callbacks for PluginCallbacks {
             .enter(|tcx: rustc_middle::ty::TyCtxt| {
                 Analyzer::<'tcx>::new(tcx, self.args.clone()).run()
             });
+
         compiler.sess.dcx().abort_if_errors();
-        // FIXME: consider to continue compilation
         rustc_driver::Compilation::Continue
     }
 }

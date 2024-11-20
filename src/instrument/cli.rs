@@ -17,7 +17,30 @@ pub const RUSTC_WORKSPACE_WRAPPER: &str = "RUSTC_WORKSPACE_WRAPPER";
 // pub const RUST_LOG_STYLE: &str = "RUST_LOG_STYLE";
 
 /// The top-level function that should be called in your user-facing binary.
-pub fn cli_main<T: RustcPlugin>(plugin: T) {
+/// This function will parse the command-line arguments, run the plugin on the
+/// appropriate crates, and then exit.
+///
+/// # Arguments
+/// - `plugin`: The plugin that will be run on the crates.
+/// - `after_exec`: A closure that will be called after the plugin has been executed only if the plugin was run on a project structured as a workspace.
+///     A workspace is specified as a Cargo.toml file with a `[workspace]` table, usually in the root of the project:
+/// ```toml
+/// [package]
+/// name = "test"
+/// version = "0.1.0"
+/// edition = "2021"
+///
+/// [dependencies]
+/// crate_a = { path = "crates/crate_a" }
+/// crate_b = { path = "crates/crate_b" }
+///
+/// [workspace]
+/// members = [
+///     "crates/crate_a",
+///     "crates/crate_b",
+/// ]
+/// ```
+pub fn cli_main<T: RustcPlugin>(plugin: T, after_exec: impl FnOnce()) {
     log::debug!("{:?}", env::args());
 
     // cargo run --bin <rustc-plug-cli> -- -V
@@ -118,6 +141,10 @@ pub fn cli_main<T: RustcPlugin>(plugin: T) {
     log::debug!("Running command: {:?}", cmd);
 
     let exit_status = cmd.status().expect("failed to wait for cargo?");
+
+    if workspace_members.len() > 1 {
+        after_exec();
+    }
 
     exit(exit_status.code().unwrap_or(-1));
 }
