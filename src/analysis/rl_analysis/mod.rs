@@ -11,30 +11,39 @@ use rustc_middle::ty;
 use serde::{de::DeserializeOwned, Serialize};
 use std::{cell::Cell, time::Duration};
 
-pub struct RLAnalysis<'tcx, 'a> {
+pub struct RLAnalysis<'tcx, 'a, G>
+where
+    G: RLGraph<Node = RLNode, Edge = RLEdge, Index = RLIndex>
+        + Default
+        + Clone
+        + Serialize
+        + DeserializeOwned,
+{
     analyzer: &'a Analyzer<'tcx>,
     krate_name: String,
     elapsed: Cell<Option<Duration>>,
+    _marked: std::marker::PhantomData<G>,
 }
 
-impl<'tcx, 'a> RLAnalysis<'tcx, 'a> {
+impl<'tcx, 'a, G> RLAnalysis<'tcx, 'a, G>
+where
+    G: RLGraph<Node = RLNode, Edge = RLEdge, Index = RLIndex>
+        + Default
+        + Clone
+        + Serialize
+        + DeserializeOwned,
+{
     pub fn new(analyzer: &'a Analyzer<'tcx>) -> Self {
         let krate_name = analyzer.tcx.crate_name(LOCAL_CRATE).to_string();
         Self {
             analyzer,
             krate_name,
             elapsed: Cell::new(None),
+            _marked: std::marker::PhantomData,
         }
     }
 
-    fn visitor<G>(&self) -> G
-    where
-        G: RLGraph<Node = RLNode, Edge = RLEdge, Index = RLIndex>
-            + Default
-            + Clone
-            + Serialize
-            + DeserializeOwned,
-    {
+    fn visitor(&self) -> G {
         let visitor: &mut RLVisitor<'tcx, 'a, G> = &mut RLVisitor::new(self.analyzer);
 
         // We do not need to call `mir_keys` (self.analyzer.tcx.mir_keys(()))
@@ -68,23 +77,14 @@ impl<'tcx, 'a> RLAnalysis<'tcx, 'a> {
         visitor.rl_graph().clone()
     }
 
-    fn serialize_rl_graph_to_file<G>(&self, rl_graph: &G)
-    where
-        G: RLGraph<Node = RLNode, Edge = RLEdge, Index = RLIndex> + Serialize,
-    {
+    fn serialize_rl_graph_to_file(&self, rl_graph: &G) {
         std::fs::create_dir_all(RL_SERDE_FOLDER).expect("Failed to create folder");
         let file_name = format!("{}/{}.rlg", RL_SERDE_FOLDER, self.krate_name);
         let file = std::fs::File::create(file_name).expect("Failed to create file");
         serde_json::to_writer(file, rl_graph).expect("Failed to serialize RLGraph");
     }
 
-    pub fn merge_all_rl_graphs<G>()
-    where
-        G: RLGraph<Node = RLNode, Edge = RLEdge, Index = RLIndex>
-            + Default
-            + Clone
-            + DeserializeOwned,
-    {
+    pub fn merge_all_rl_graphs() {
         let mut merged_rl_graph: G = G::default();
         let rl_graphs = std::fs::read_dir(RL_SERDE_FOLDER).expect("Failed to read folder");
 
@@ -100,7 +100,7 @@ impl<'tcx, 'a> RLAnalysis<'tcx, 'a> {
 
     pub fn run(&self) {
         let start_time = std::time::Instant::now();
-        let rl_graph = self.visitor::<rustworkx_core::petgraph::graph::DiGraph<_, _, _>>();
+        let rl_graph = self.visitor();
         let elapsed = start_time.elapsed();
         self.elapsed.set(Some(elapsed));
         self.serialize_rl_graph_to_file(&rl_graph);

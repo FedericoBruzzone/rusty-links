@@ -61,7 +61,7 @@ pub struct RustyLinks;
 impl RustyLinks {
     pub fn after_exec() {
         log::debug!("After exec");
-        RLAnalysis::merge_all_rl_graphs::<rustworkx_core::petgraph::graph::DiGraph<_, _, _>>();
+        RLAnalysis::<rustworkx_core::petgraph::graph::DiGraph<_, _, _>>::merge_all_rl_graphs();
     }
 }
 
