@@ -227,11 +227,11 @@ fn test_own(_1: T) -> () {
     }
 }
 digraph {
-    0 [ label="i0: DefId(0:9 ~ find_local_var[010e]::{impl#0}::clone)"]
-    1 [ label="i1: DefId(2:2932 ~ core[fc4c]::clone::Clone::clone)"]
-    2 [ label="i2: DefId(0:3 ~ find_local_var[010e]::main)"]
-    3 [ label="i3: DefId(0:5 ~ find_local_var[010e]::test_own)"]
-    4 [ label="i4: DefId(0:4 ~ find_local_var[010e]::main::{closure#0})"]
+    0 [ label="i0: DefId(0:9 ~ find_local_var[a99e]::{impl#0}::clone)"]
+    1 [ label="i1: DefId(2:2922 ~ core[47af]::clone::Clone::clone)"]
+    2 [ label="i2: DefId(0:3 ~ find_local_var[a99e]::main)"]
+    3 [ label="i3: DefId(0:5 ~ find_local_var[a99e]::test_own)"]
+    4 [ label="i4: DefId(0:4 ~ find_local_var[a99e]::main::{closure#0})"]
     0 -> 1 [ label="1.00"]
     2 -> 1 [ label="1.00"]
     2 -> 3 [ label="1.00"]

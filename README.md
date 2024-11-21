@@ -8,8 +8,8 @@ It is a research project that aims to improve the Rust programming language by p
 ### Setup
 
 ```bash
-rustup toolchain install nightly-2024-10-18
-rustup component add --toolchain nightly-2024-10-18 rust-src rustc-dev llvm-tools-preview rust-analyzer clippy
+rustup toolchain install nightly-2024-11-18
+rustup component add --toolchain nightly-2024-11-18 rust-src rustc-dev llvm-tools-preview rust-analyzer clippy
 ```
 
 ### Test

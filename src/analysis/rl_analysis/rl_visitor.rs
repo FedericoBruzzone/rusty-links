@@ -277,6 +277,12 @@ where
         match call_kind {
             CallKind::Function => args.iter().map(|arg| arg.node.clone()).collect::<Vec<_>>(),
             CallKind::Closure => {
+                // FIX: The closure should have only one argument
+                if args.len() < 2 {
+                    log::error!("The closure should have only one argument");
+                    return Vec::new();
+                }
+
                 let args = match &args[1].node {
                     mir::Operand::Move(place) => {
                         let tuple = self.map_place_rvalue[&place.local].as_ref().unwrap();
