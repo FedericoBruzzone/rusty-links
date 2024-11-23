@@ -212,7 +212,9 @@ where
             ty::TyKind::FnDef(def_id, generic_args) => {
                 // Check if the def_id is a closure
                 let closure_args = generic_args.as_closure().args;
-                if closure_args.len() > 0 {
+                // This must be greater than 1 because the first argument is the closure itself and
+                // the second argument is the tuple of arguments.
+                if closure_args.len() > 1 {
                     if let Some(ty) = closure_args[0].as_type() {
                         if let ty::TyKind::Closure(closure_def_id, _substs) = ty.kind() {
                             return (*closure_def_id, CallKind::Closure);
@@ -277,12 +279,7 @@ where
         match call_kind {
             CallKind::Function => args.iter().map(|arg| arg.node.clone()).collect::<Vec<_>>(),
             CallKind::Closure => {
-                // FIX: The closure should have only one argument
-                if args.len() < 2 {
-                    log::error!("The closure should have only one argument");
-                    return Vec::new();
-                }
-
+                // It is safe to assume that the second argument is a tuple by construction.
                 let args = match &args[1].node {
                     mir::Operand::Move(place) => {
                         let tuple = self.map_place_rvalue[&place.local].as_ref().unwrap();
@@ -310,7 +307,13 @@ where
                         }
                         todo!()
                     }
-                    mir::Operand::Copy(_place) => todo!(),
+                    mir::Operand::Copy(_place) => {
+                        // As far as I know, this case should not happen:
+                        // in `std::ops::Fn<T>::call(&self, args: T)` the T is always `move` if
+                        // there are arguments, or a `Constant` if there are no arguments.
+                        // Note: &self if the closure itself.
+                        unreachable!()
+                    }
                 };
                 args
             }
