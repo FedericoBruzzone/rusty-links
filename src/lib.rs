@@ -28,13 +28,13 @@ pub struct CliArgs {
     #[clap(long)]
     color_log: bool,
 
+    /// Use unoptimized MIR
+    #[clap(long)]
+    use_unoptimized_mir: bool,
+
     /// Print the AST of the crate
     #[clap(long)]
     print_crate: bool,
-
-    /// Print the unoptimized MIR
-    #[clap(long)]
-    print_unoptimized_mir: bool,
 
     // Print MIR
     #[clap(long)]
@@ -141,7 +141,8 @@ impl rustc_driver::Callbacks for PluginCallbacks {
         //
         //     sess.dcx().make_silent(fallback_bundle, None, false);
         // }));
-        if !self.args.print_mir {
+
+        if self.args.use_unoptimized_mir {
             config.opts.unstable_opts.mir_opt_level = Some(0);
         }
     }

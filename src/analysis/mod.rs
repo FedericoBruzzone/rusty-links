@@ -30,8 +30,7 @@ impl<'tcx> Analyzer<'tcx> {
             println!("{:#?}", krate);
         }
 
-        // In case of "optimized" MIR, in the `config` callback we do not set the `mir_opt_level` to 0.
-        if self.cli_args.print_mir || self.cli_args.print_unoptimized_mir {
+        if self.cli_args.print_mir {
             log::debug!("Printing the MIR");
             mir::write_mir_pretty(self.tcx, None, &mut std::io::stdout())
                 .expect("write_mir_pretty failed");
