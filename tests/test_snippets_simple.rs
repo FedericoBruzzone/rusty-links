@@ -7,7 +7,7 @@ mod test_snippets {
     const FOLDER: &str = "tests/snippets/simple";
 
     #[test]
-    fn test_first() -> Result<(), String> {
+    fn test_simple_with_file_first() -> Result<(), String> {
         let snippet = &std::fs::read_to_string(format!("{FOLDER}/first.rs")).unwrap();
         let (output, _) = run_with_cargo_bin_and_snippet(snippet, &["--print-crate"])?;
 

@@ -4,9 +4,8 @@ struct T {
 
 fn main() {
     let x = T { _value: 10 };
-
-    let z = test_own;
-    z(x);
+    let y = test_own;
+    y(x);
 }
 
 fn test_own(t: T) {

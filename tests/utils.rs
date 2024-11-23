@@ -17,6 +17,9 @@ static INSTALL_PLUGIN: Once = Once::new();
 /// * `cargo_project_name` - The name of the cargo project in the `tests` directory. E.g. `workspaces/simple_feature_no_weights`
 /// * `expected_outout_name` - The name of the file containing the expected output in the cargo project directory. E.g. `expected_output.stdout`
 /// * `plugin_args` - The arguments to pass to the plugin
+///
+/// # Returns
+/// A tuple containing the output of the plugin and the expected output if `expected_outout_name` is provided.
 pub fn run_with_cargo_bin(
     cargo_project_name: &str,
     expected_outout_name: Option<&str>,

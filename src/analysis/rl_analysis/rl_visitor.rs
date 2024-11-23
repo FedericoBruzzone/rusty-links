@@ -302,7 +302,15 @@ where
                             _ => unreachable!(),
                         }
                     }
-                    _ => unreachable!(),
+                    mir::Operand::Constant(const_operand) => {
+                        // A closure with no arguments
+                        if let mir::Const::Val(mir::ConstValue::ZeroSized, _) = const_operand.const_
+                        {
+                            return Vec::new();
+                        }
+                        todo!()
+                    }
+                    mir::Operand::Copy(_place) => todo!(),
                 };
                 args
             }
