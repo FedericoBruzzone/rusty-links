@@ -17,6 +17,7 @@ fn main() {
     let mut x = test_own as fn(T);
     x = test as fn(T);
     x(T { _value: 10 });
+    x(T { _value: 10 });
 
     // let x = T { _value: 10 };
     // test_own(x.clone());

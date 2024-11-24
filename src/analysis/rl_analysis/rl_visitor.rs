@@ -208,7 +208,14 @@ where
             // }
             // ```
             Some(mir::Rvalue::Cast(_cast_kind, operand, _ty)) => self.retrieve_call_def_id(operand),
-            _ => unreachable!(),
+            err => {
+                log::error!(
+                    "The local ({:?}) is not a function, but an error: {:?}",
+                    local,
+                    err
+                );
+                unreachable!()
+            }
         }
     }
 
@@ -350,6 +357,12 @@ where
     /// Add an edge between the current visited function and the function that is called.
     /// The edge is weighted by the arguments of the function call.
     fn add_edge(&mut self, def_id: DefId, args: Vec<mir::Operand<'tcx>>) {
+        log::debug!(
+            "Adding an edge between the current visited function ({:?}) and the function that is called ({:?}) with the arguments: {:?}",
+            self.stack_local_def_id.last().unwrap().0,
+            def_id,
+            args
+        );
         let fun_caller = self.rl_graph_index_map[&self.stack_local_def_id.last().unwrap().0];
         let fun_callee = self.add_node_if_needed(def_id);
         let arg_weights = args
@@ -583,7 +596,10 @@ where
         match context {
             mir::visit::PlaceContext::NonUse(non_use_context) => match non_use_context {
                 mir::visit::NonUseContext::StorageDead => {
-                    let _ = self.map_place_rvalue.insert(local, None);
+                    // We can not remove the local from the map_place_rvalue
+                    // because when we need to find the origian rvalue of a local,
+                    // we need to look at the map_place_rvalue.
+                    // let _ = self.map_place_rvalue.insert(local, None);
                 }
                 mir::visit::NonUseContext::StorageLive => {
                     // It is not always true that if the map contains the local,
