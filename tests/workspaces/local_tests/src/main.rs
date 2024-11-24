@@ -9,8 +9,16 @@ struct T {
     _value: i32,
 }
 
+fn test(t: T) {
+    let _ = t;
+}
+
 fn main() {
-    let x = T { _value: 10 };
+    let mut x = test_own as fn(T);
+    x = test as fn(T);
+    x(T { _value: 10 });
+
+    // let x = T { _value: 10 };
     // test_own(x.clone());
 
     // let y = &test_own;
@@ -31,34 +39,34 @@ fn main() {
     // };
     // lambda(&x.clone());
 
+    // let lambda = |bbox: std::boxed::Box<dyn Fn() -> T>| {
+    //     let x = T { _value: 10 };
+    //     test_own(x);
+    // };
+    // lambda(std::boxed::Box::new(|| x.clone()));
+
+    // // BUG 
     // let lambda = |llambda: &dyn Fn(T) -> T| {
     //     let x = T { _value: 10 };
     //     test_own(x);
     // };
+
     // lambda(&|_| x.clone());
+    // let lambda = |llambda: &dyn Fn() -> ()| {
+    //     llambda();
+    // };
+    // lambda(&|| {
+    //     let x = T { _value: 10 };
+    //     test_own(x.clone());
+    // });
 
-    let lambda = |bbox: std::boxed::Box<dyn Fn() -> T>| {
-        let x = T { _value: 10 };
-        test_own(x);
-    };
-    lambda(std::boxed::Box::new(|| x.clone()));
-
-    // BUG 
-    let lambda = |llambda: &dyn Fn() -> ()| {
-        llambda();
-    };
-    lambda(&|| {
-        let x = T { _value: 10 };
-        test_own(x.clone());
-    });
-
-    test_fn(x.clone(), &|| {
-        let x = T { _value: 10 };
-        test_own(x.clone());
-    });
+    // test_fn(&|| {
+    //     let x = T { _value: 10 };
+    //     test_own(x.clone());
+    // });
 }
 
-fn test_fn(_: T, t: &dyn Fn() -> ()) {
+fn test_fn(t: &dyn Fn() -> ()) {
     t();
 }
 

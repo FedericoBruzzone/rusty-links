@@ -186,6 +186,26 @@ where
             Some(mir::Rvalue::Ref(_region, _borrow_kind, place)) => {
                 self.retrieve_fun_def_id(place.local)
             }
+            // In rust is:
+            //
+            // ```rust, ignore
+            // let mut x = test_own as fn(T);
+            // x = test as fn(T);
+            // x(T { _value: 10 });
+            // ```
+            //
+            // In MIR is translated as:
+            // ```rust, ignore
+            // bb0: {
+            //     _1 = test_own as fn(T) (PointerCoercion(ReifyFnPointer, AsCast));
+            //     _2 = test as fn(T) (PointerCoercion(ReifyFnPointer, AsCast));
+            //     _1 = move _2;
+            //     _4 = copy _1;
+            //     _5 = T { _value: const 10_i32 };
+            //     _3 = move _4(move _5) -> [return: bb1, unwind continue];
+            // }
+            // ```
+            Some(mir::Rvalue::Cast(_cast_kind, operand, _ty)) => self.retrieve_call_def_id(operand),
             _ => unreachable!(),
         }
     }
