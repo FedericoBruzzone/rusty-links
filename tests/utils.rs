@@ -61,7 +61,7 @@ pub fn run_with_cargo_bin(
 
     // Run the plugin
     let output = cargo_cmd.output().unwrap();
-    // assert!(output.status.success());  This cannot be true because the plugin is change all `#[cfg(` to `#[my_cfg(` in order to process all the features
+    assert!(output.status.success());
 
     if let Some(expected_outout_name) = expected_outout_name {
         let expected_output_path = workspace_path.join(expected_outout_name);

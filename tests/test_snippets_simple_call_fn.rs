@@ -4,11 +4,11 @@ mod test_snippets {
     // use pretty_assertions::assert_eq;
     use crate::utils::run_with_cargo_bin_and_snippet;
 
-    const FOLDER: &str = "tests/snippets/simple_call";
+    const FOLDER: &str = "tests/snippets/simple_call_fn";
 
     #[test]
-    fn test_simple_call_with_file_call_directly() -> Result<(), String> {
-        let snippet = &std::fs::read_to_string(format!("{FOLDER}/call_directly.rs")).unwrap();
+    fn test_simple_call_with_file_call_fn_directly() -> Result<(), String> {
+        let snippet = &std::fs::read_to_string(format!("{FOLDER}/call_fn_directly.rs")).unwrap();
         let (output, _) = run_with_cargo_bin_and_snippet(snippet, &["--print-rl-graph"])?;
 
         assert!(output.contains("0 -> 1")); // main -> test_own
@@ -17,8 +17,8 @@ mod test_snippets {
     }
 
     #[test]
-    fn test_simple_call_with_file_call_alias() -> Result<(), String> {
-        let snippet = &std::fs::read_to_string(format!("{FOLDER}/call_alias.rs")).unwrap();
+    fn test_simple_call_with_file_call_fn_alias() -> Result<(), String> {
+        let snippet = &std::fs::read_to_string(format!("{FOLDER}/call_fn_alias.rs")).unwrap();
         let (output, _) = run_with_cargo_bin_and_snippet(snippet, &["--print-rl-graph"])?;
 
         assert!(output.contains("0 -> 1")); // main -> test_own
@@ -27,8 +27,8 @@ mod test_snippets {
     }
 
     #[test]
-    fn test_simple_call_with_file_call_ref_alias() -> Result<(), String> {
-        let snippet = &std::fs::read_to_string(format!("{FOLDER}/call_ref_alias.rs")).unwrap();
+    fn test_simple_call_with_file_call_fn_ref_alias() -> Result<(), String> {
+        let snippet = &std::fs::read_to_string(format!("{FOLDER}/call_fn_ref_alias.rs")).unwrap();
         let (output, _) = run_with_cargo_bin_and_snippet(snippet, &["--print-rl-graph"])?;
 
         assert!(output.contains("0 -> 1")); // main -> test_own
@@ -37,9 +37,9 @@ mod test_snippets {
     }
 
     #[test]
-    fn test_simple_call_with_file_call_directly_from_clusure() -> Result<(), String> {
+    fn test_simple_call_with_file_call_fn_directly_from_clusure() -> Result<(), String> {
         let snippet =
-            &std::fs::read_to_string(format!("{FOLDER}/call_directly_from_closure.rs")).unwrap();
+            &std::fs::read_to_string(format!("{FOLDER}/call_fn_directly_from_closure.rs")).unwrap();
         let (output, _) = run_with_cargo_bin_and_snippet(snippet, &["--print-rl-graph"])?;
 
         assert!(output.contains("0 -> 1")); // main -> closure
@@ -49,9 +49,9 @@ mod test_snippets {
     }
 
     #[test]
-    fn test_simple_call_with_file_call_alias_from_closure() -> Result<(), String> {
+    fn test_simple_call_with_file_call_fn_alias_from_closure() -> Result<(), String> {
         let snippet =
-            &std::fs::read_to_string(format!("{FOLDER}/call_alias_from_closure.rs")).unwrap();
+            &std::fs::read_to_string(format!("{FOLDER}/call_fn_alias_from_closure.rs")).unwrap();
         let (output, _) = run_with_cargo_bin_and_snippet(snippet, &["--print-rl-graph"])?;
 
         assert!(output.contains("0 -> 1")); // main -> closure
@@ -61,9 +61,9 @@ mod test_snippets {
     }
 
     #[test]
-    fn test_simple_call_with_file_call_ref_alias_from_closure() -> Result<(), String> {
+    fn test_simple_call_with_file_call_fn_ref_alias_from_closure() -> Result<(), String> {
         let snippet =
-            &std::fs::read_to_string(format!("{FOLDER}/call_ref_alias_from_closure.rs")).unwrap();
+            &std::fs::read_to_string(format!("{FOLDER}/call_fn_ref_alias_from_closure.rs")).unwrap();
         let (output, _) = run_with_cargo_bin_and_snippet(snippet, &["--print-rl-graph"])?;
 
         assert!(output.contains("0 -> 1")); // main -> closure
