@@ -31,7 +31,9 @@ where
 {
     analyzer: &'a Analyzer<'tcx>,
 
-    // Stack of local_def_id and local_decls
+    // Stack of local_def_id and local_decls.
+    // It should enought to keep track the current function and its local variables,
+    // becuase the MIR does not allow nested functions.
     stack_local_def_id: Vec<(DefId, &'a IndexVec<mir::Local, mir::LocalDecl<'tcx>>)>,
 
     // Map of places and their rvalues
@@ -105,7 +107,7 @@ where
             mir::Operand::Copy(place) => {
                 let (def_id, call_kind) = self.retrieve_fun_def_id(place.local);
                 log::debug!(
-                    "Retrieving the def_id of the function (local: {:?}) that is called",
+                    "Retrieving(Copy) the def_id of the function (local: {:?}) that is called",
                     place.local
                 );
                 (def_id, call_kind)
@@ -113,7 +115,7 @@ where
             mir::Operand::Move(place) => {
                 let (def_id, call_kind) = self.retrieve_fun_def_id(place.local);
                 log::debug!(
-                    "Retrieving the def_id of the function (local: {:?}) that is called",
+                    "Retrieving(Move) the def_id of the function (local: {:?}) that is called",
                     place.local
                 );
                 (def_id, call_kind)
@@ -121,7 +123,7 @@ where
             mir::Operand::Constant(const_operand) => {
                 let (def_id, call_kind) = self.retrieve_fun_or_closure_def_id(const_operand);
                 log::debug!(
-                    "Retrieving the def_id {:?} of the {:?} that is called",
+                    "Retrieving(Constant) the def_id {:?} of the {:?} that is called",
                     def_id,
                     call_kind
                 );
@@ -210,10 +212,9 @@ where
     ) -> (DefId, CallKind) {
         match const_operand.const_.ty().kind() {
             ty::TyKind::FnDef(def_id, generic_args) => {
-                // Check if the def_id is a closure
+                // Interpret the generic_args as a closure
                 let closure_args = generic_args.as_closure().args;
-                // This must be greater than 1 because the first argument is the closure itself and
-                // the second argument is the tuple of arguments.
+
                 if closure_args.len() > 1 {
                     if let Some(ty) = closure_args[0].as_type() {
                         if let ty::TyKind::Closure(closure_def_id, _substs) = ty.kind() {
@@ -310,7 +311,7 @@ where
                     mir::Operand::Copy(_place) => {
                         // As far as I know, this case should not happen:
                         // in `std::ops::Fn<T>::call(&self, args: T)` the T is always `move` if
-                        // there are arguments, or a `Constant` if there are no arguments.
+                        // there are arguments, or a ZST `Constant` if there are no arguments.
                         // Note: &self if the closure itself.
                         unreachable!()
                     }
