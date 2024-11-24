@@ -399,8 +399,6 @@ where
     // Call by the super_body
     fn visit_ty(&mut self, ty: ty::Ty<'tcx>, context: mir::visit::TyContext) {
         log::trace!("Visiting the ty: {:?}, {:?}", ty, context);
-        // TODO: We should visit the `FnDef` because in `_12 = test_own(move _13) -> [return: bb5, unwind continue];`
-        // `test_own` is a `FnDef`.
         self.super_ty(ty);
     }
 

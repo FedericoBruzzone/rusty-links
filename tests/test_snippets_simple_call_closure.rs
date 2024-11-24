@@ -8,7 +8,8 @@ mod test_snippets {
 
     #[test]
     fn test_simple_call_with_file_call_closure_directly() -> Result<(), String> {
-        let snippet = &std::fs::read_to_string(format!("{FOLDER}/call_closure_directly.rs")).unwrap();
+        let snippet =
+            &std::fs::read_to_string(format!("{FOLDER}/call_closure_directly.rs")).unwrap();
         let (output, _) = run_with_cargo_bin_and_snippet(snippet, &["--print-rl-graph"])?;
 
         assert!(output.contains("0 -> 1")); // main -> {closure#0} [test_own]
@@ -28,7 +29,8 @@ mod test_snippets {
 
     #[test]
     fn test_simple_call_with_file_call_closure_ref_alias() -> Result<(), String> {
-        let snippet = &std::fs::read_to_string(format!("{FOLDER}/call_closure_ref_alias.rs")).unwrap();
+        let snippet =
+            &std::fs::read_to_string(format!("{FOLDER}/call_closure_ref_alias.rs")).unwrap();
         let (output, _) = run_with_cargo_bin_and_snippet(snippet, &["--print-rl-graph"])?;
 
         assert!(output.contains("0 -> 1")); // main -> {closure#0} [test_own]
@@ -39,10 +41,11 @@ mod test_snippets {
     #[test]
     fn test_simple_call_with_file_call_closure_directly_from_clusure() -> Result<(), String> {
         let snippet =
-            &std::fs::read_to_string(format!("{FOLDER}/call_closure_directly_from_closure.rs")).unwrap();
+            &std::fs::read_to_string(format!("{FOLDER}/call_closure_directly_from_closure.rs"))
+                .unwrap();
         let (output, _) = run_with_cargo_bin_and_snippet(snippet, &["--print-rl-graph"])?;
 
-        assert!(output.contains("0 -> 1")); // main -> {closure#0} 
+        assert!(output.contains("0 -> 1")); // main -> {closure#0}
         assert!(output.contains("1 -> 2")); // {closure#0} -> {closure#1} [test_own]
 
         Ok(())
@@ -51,7 +54,8 @@ mod test_snippets {
     #[test]
     fn test_simple_call_with_file_call_closure_alias_from_closure() -> Result<(), String> {
         let snippet =
-            &std::fs::read_to_string(format!("{FOLDER}/call_closure_alias_from_closure.rs")).unwrap();
+            &std::fs::read_to_string(format!("{FOLDER}/call_closure_alias_from_closure.rs"))
+                .unwrap();
         let (output, _) = run_with_cargo_bin_and_snippet(snippet, &["--print-rl-graph"])?;
 
         assert!(output.contains("0 -> 1")); // main -> {closure#0}
@@ -63,7 +67,8 @@ mod test_snippets {
     #[test]
     fn test_simple_call_with_file_call_closure_ref_alias_from_closure() -> Result<(), String> {
         let snippet =
-            &std::fs::read_to_string(format!("{FOLDER}/call_closure_ref_alias_from_closure.rs")).unwrap();
+            &std::fs::read_to_string(format!("{FOLDER}/call_closure_ref_alias_from_closure.rs"))
+                .unwrap();
         let (output, _) = run_with_cargo_bin_and_snippet(snippet, &["--print-rl-graph"])?;
 
         assert!(output.contains("0 -> 1")); // main -> {closure#0}
