@@ -102,6 +102,8 @@ where
     }
 
     /// Retrieve the def_id of the function that is called.
+    /// This function call the `retrieve_fun_def_id` or `retrieve_fun_or_closure_def_id`
+    /// which recursively retrieve the def_id of the function.
     fn retrieve_call_def_id(&self, func: &mir::Operand<'tcx>) -> (DefId, CallKind) {
         match func {
             mir::Operand::Copy(place) => {
