@@ -96,6 +96,12 @@ fn main() -> () {
     let _14: ();
     let mut _15: &mut T;
     let _17: ();
+    let _19: ();
+    let mut _20: &mut U;
+    let _21: ();
+    let mut _22: &U;
+    let _23: ();
+    let mut _24: U;
     scope 1 {
         debug x => _4;
         let _6: T;
@@ -112,6 +118,10 @@ fn main() -> () {
                         debug x => _16;
                         scope 6 {
                             debug copy_x => _16;
+                            let mut _18: U;
+                            scope 7 {
+                                debug x => _18;
+                            }
                         }
                     }
                 }
@@ -161,6 +171,22 @@ fn main() -> () {
     }
 
     bb8: {
+        _18 = U { _value: const 10_i32 };
+        _20 = &mut _18;
+        _19 = <U as Trait>::test_self_ref_mut(move _20) -> [return: bb9, unwind continue];
+    }
+
+    bb9: {
+        _22 = &_18;
+        _21 = <U as Trait>::test_self_ref(move _22) -> [return: bb10, unwind continue];
+    }
+
+    bb10: {
+        _24 = copy _18;
+        _23 = <U as Trait>::test_self(move _24) -> [return: bb11, unwind continue];
+    }
+
+    bb11: {
         return;
     }
 }
@@ -211,9 +237,42 @@ fn test_for_u(_1: U) -> () {
         return;
     }
 }
+
+fn <impl at src/main.rs:170:1: 170:17>::test_self_ref_mut(_1: &mut U) -> () {
+    debug self => _1;
+    let mut _0: ();
+    scope 1 {
+    }
+
+    bb0: {
+        return;
+    }
+}
+
+fn <impl at src/main.rs:170:1: 170:17>::test_self_ref(_1: &U) -> () {
+    debug self => _1;
+    let mut _0: ();
+    scope 1 {
+    }
+
+    bb0: {
+        return;
+    }
+}
+
+fn <impl at src/main.rs:170:1: 170:17>::test_self(_1: U) -> () {
+    debug self => _1;
+    let mut _0: ();
+    scope 1 {
+    }
+
+    bb0: {
+        return;
+    }
+}
 digraph {
-    0 [ label="i0: DefId(0:15 ~ local_tests[65b4]::{impl#0}::clone)"]
-    1 [ label="i1: DefId(0:19 ~ local_tests[65b4]::{impl#1}::clone)"]
+    0 [ label="i0: DefId(0:23 ~ local_tests[65b4]::{impl#1}::clone)"]
+    1 [ label="i1: DefId(0:27 ~ local_tests[65b4]::{impl#2}::clone)"]
     2 [ label="i2: DefId(0:3 ~ local_tests[65b4]::test_const)"]
     3 [ label="i3: DefId(0:4 ~ local_tests[65b4]::test_move)"]
     4 [ label="i4: DefId(0:5 ~ local_tests[65b4]::test_copy)"]
@@ -222,8 +281,14 @@ digraph {
     7 [ label="i7: DefId(0:8 ~ local_tests[65b4]::main)"]
     8 [ label="i8: DefId(2:2922 ~ core[47af]::clone::Clone::clone)"]
     9 [ label="i9: DefId(0:11 ~ local_tests[65b4]::test_for_u)"]
-    10 [ label="i10: DefId(0:9 ~ local_tests[65b4]::main::xtmp)"]
-    11 [ label="i11: DefId(0:10 ~ local_tests[65b4]::main::xc)"]
+    10 [ label="i10: DefId(0:13 ~ local_tests[65b4]::Trait::test_self_ref_mut)"]
+    11 [ label="i11: DefId(0:14 ~ local_tests[65b4]::Trait::test_self_ref)"]
+    12 [ label="i12: DefId(0:15 ~ local_tests[65b4]::Trait::test_self)"]
+    13 [ label="i13: DefId(0:9 ~ local_tests[65b4]::main::xtmp)"]
+    14 [ label="i14: DefId(0:10 ~ local_tests[65b4]::main::xc)"]
+    15 [ label="i15: DefId(0:17 ~ local_tests[65b4]::{impl#0}::test_self_ref_mut)"]
+    16 [ label="i16: DefId(0:18 ~ local_tests[65b4]::{impl#0}::test_self_ref)"]
+    17 [ label="i17: DefId(0:19 ~ local_tests[65b4]::{impl#0}::test_self)"]
     7 -> 6 [ label="1.00"]
     7 -> 2 [ label="1.00"]
     7 -> 3 [ label="1.00"]
@@ -232,5 +297,8 @@ digraph {
     7 -> 4 [ label="1.00"]
     7 -> 5 [ label="1.00"]
     7 -> 9 [ label="1.00"]
+    7 -> 10 [ label="1.00"]
+    7 -> 11 [ label="1.00"]
+    7 -> 12 [ label="1.00"]
 }
 

@@ -570,6 +570,8 @@ where
                     mir::Rvalue::Use(func.clone()), // TODO: We should find the return value of the function
                 );
 
+                // TODO: check if it is a method in some whay. Add if it is possible
+                // to `call_kind` a Method variant.
                 let (def_id, call_kind) = self.retrieve_call_def_id(func);
                 if call_kind != CallKind::Unknown {
                     let args = self.update_args(args, call_kind);

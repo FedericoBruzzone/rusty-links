@@ -95,7 +95,7 @@
 // ====================================================================================
 
 #[derive(Clone)]
-struct T {
+pub struct T {
     _value: i32,
 }
 
@@ -150,8 +150,33 @@ fn main() {
     let x = U { _value: 10 };
     test_for_u(x);
     let copy_x = x;
+
+    let mut x = U { _value: 10 };
+    x.test_self_ref_mut();
+    x.test_self_ref();
+    x.test_self();
 }
 
 fn test_for_u(u: U) {
     let _ = u;
+}
+
+trait Trait {
+    fn test_self_ref_mut(&mut self);
+    fn test_self_ref(&self);
+    fn test_self(self);
+}
+
+impl Trait for U {
+    fn test_self_ref_mut(&mut self) {
+        let _ = self;
+    }
+
+    fn test_self_ref(&self) {
+        let _ = self;
+    }
+
+    fn test_self(self) {
+        let _ = self;
+    }
 }

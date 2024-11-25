@@ -12,6 +12,51 @@ We can trait the operator `kind` as a multiplier on the `kind` of the place it i
 - `move` a place which is an `Adt` -> good
 - `move` a place which is a `Const` -> top 
 
+
+## 2024-11-25
+
+When we have functions defined in a trait, the self is moved and not copied also it is a reference.
+
+```rust
+trait Trait {
+    fn test_self_ref_mut(&mut self);
+    fn test_self_ref(&self);
+    fn test_self(self);
+}
+
+impl Trait for U {
+    fn test_self_ref_mut(&mut self) {
+        let _ = self;
+    }
+
+    fn test_self_ref(&self) {
+        let _ = self;
+    }
+
+    fn test_self(self) {
+        let _ = self;
+    }
+}
+```
+
+```rust
+bb8: {
+    _18 = U { _value: const 10_i32 };
+    _20 = &mut _18;
+    _19 = <U as Trait>::test_self_ref_mut(move _20) -> [return: bb9, unwind continue];
+}
+
+bb9: {
+    _22 = &_18;
+    _21 = <U as Trait>::test_self_ref(move _22) -> [return: bb10, unwind continue];
+}
+
+bb10: {
+    _24 = copy _18;
+    _23 = <U as Trait>::test_self(move _24) -> [return: bb11, unwind continue];
+}
+```
+
 ## 2024-11-25
 
 Example in which we prefer to work with the optmiized version of the MIR.
