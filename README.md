@@ -9,7 +9,7 @@ It is a research project that aims to improve the Rust programming language by p
 
 ```bash
 rustup toolchain install nightly-2024-11-18
-rustup component add --toolchain nightly-2024-11-18 rust-src rustc-dev llvm-tools-preview rust-analyzer clippy
+rustup component add --toolchain nightly-2024-11-18 rust-src rustc-dev llvm-tools-preview miri rust-analyzer clippy
 ```
 
 ### Test
