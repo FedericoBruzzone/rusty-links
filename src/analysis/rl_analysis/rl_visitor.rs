@@ -22,6 +22,7 @@ use super::Analyzer;
 enum CallKind {
     Function,
     Closure,
+    Method, // It does not add any information, it is treated as a function
     Unknown,
 }
 
@@ -161,7 +162,7 @@ where
                 (def_id, call_kind)
             }
             mir::Operand::Constant(const_operand) => {
-                let (def_id, call_kind) = self.retrieve_fun_or_closure_def_id(const_operand);
+                let (def_id, call_kind) = self.retrieve_fun_meth_closure_def_id(const_operand);
                 log::debug!(
                     "Retrieving(Constant) the def_id {:?} of the {:?} that is called",
                     def_id,
@@ -198,6 +199,17 @@ where
             // _5 = function
             // _5 = const main::promoted[0]
             Some(mir::Rvalue::Use(mir::Operand::Constant(const_operand))) => {
+                // It seems to be safa at this point to assume that the constant is a function.
+                // A closure (as terminator) can never be in the form:
+                // ```rust, ignore
+                // _5 = move|copy _6
+                // ```
+                // because the closure is always in the form:
+                // ```rust, ignore
+                // _5 = {closure@src/main.rs:18:18: 18:20} ...
+                // ```
+                // and this case is handled in the `retrieve_fun_meth_closure_def_id` which is called
+                // by `retrieve_call_def_id` in case of a constant (which is exactly this case).
                 match const_operand.const_.ty().kind() {
                     ty::TyKind::FnDef(def_id, _generic_args) => (*def_id, CallKind::Function),
                     ty::TyKind::Ref(_region, ty, _mutability) => match ty.kind() {
@@ -273,12 +285,17 @@ where
     /// }
     /// ```
     /// In this case the first arguments it `move _17` that is a reference to the closure.
-    fn retrieve_fun_or_closure_def_id(
+    fn retrieve_fun_meth_closure_def_id(
         &self,
         const_operand: &mir::ConstOperand<'tcx>,
     ) -> (DefId, CallKind) {
         match const_operand.const_.ty().kind() {
             ty::TyKind::FnDef(def_id, generic_args) => {
+                // Check if the def_id is a method
+                if let Some(def_id) = self.analyzer.tcx.impl_of_method(*def_id) {
+                    return (def_id, CallKind::Method);
+                }
+
                 // Interpret the generic_args as a closure
                 let closure_args = generic_args.as_closure().args;
 
@@ -346,6 +363,7 @@ where
     ) -> Vec<mir::Operand<'tcx>> {
         match call_kind {
             CallKind::Function => args.iter().map(|arg| arg.node.clone()).collect::<Vec<_>>(),
+            CallKind::Method => args.iter().map(|arg| arg.node.clone()).collect::<Vec<_>>(),
             CallKind::Closure => {
                 // It is safe to assume that the second argument is a tuple by construction.
                 let args = match &args[1].node {
@@ -570,8 +588,6 @@ where
                     mir::Rvalue::Use(func.clone()), // TODO: We should find the return value of the function
                 );
 
-                // TODO: check if it is a method in some whay. Add if it is possible
-                // to `call_kind` a Method variant.
                 let (def_id, call_kind) = self.retrieve_call_def_id(func);
                 if call_kind != CallKind::Unknown {
                     let args = self.update_args(args, call_kind);

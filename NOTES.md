@@ -1,5 +1,7 @@
 # Notes
 
+Copy is better than move. (This phrase assume that the code is written in a way that only the type that needs the copy operator will have it.)
+
 | Operator Kind  |
 |----------------|
 | move           |
@@ -13,9 +15,62 @@ We can trait the operator `kind` as a multiplier on the `kind` of the place it i
 - `move` a place which is a `Const` -> top 
 
 
+
+## 2024-11-26
+
+It the type is not `Copy` we will always have a `move` operator in the MIR.
+
+```rust
+#[derive(Clone)]
+pub struct T {
+    _value: i32,
+}
+
+impl T {
+    fn test_method(self) {
+        let _ = self;
+    }
+}
+```
+
+```rust
+bb3: {
+    _6 = T { _value: const 10_i32 };
+    _9 = &_6;
+    _8 = <T as std::clone::Clone>::clone(move _9) -> [return: bb4, unwind continue];
+}
+
+bb4: {
+    _7 = test_move(move _8) -> [return: bb5, unwind continue];
+}
+
+bb5: {
+    _10 = T::test_method(move _6) -> [return: bb6, unwind continue];
+}
+```
+
+## 2024-11-26
+
+There are another cases when we transfer the ownership of `self` to the method call.
+In this case we have a `copy` operator used directly.
+
+
+```rust
+bb7: {
+    _16 = U { _value: const 10_i32 };
+    _17 = test_for_u(copy _16) -> [return: bb8, unwind continue];
+}
+
+bb8: {
+    _18 = U::test_method(copy _16) -> [return: bb9, unwind continue];
+}
+```
+
+
 ## 2024-11-25
 
-When we have functions defined in a trait, the self is moved and not copied also it is a reference.
+If `self` does not implement `Copy` we will always have a `move` operator in the MIR in the method call.
+Note that in the case of ownership transfer we will have a `move` preceded by a `copy` operator.
 
 ```rust
 trait Trait {

@@ -12,6 +12,7 @@
 // fn test(t: T) {
 //     let _ = t;
 // }
+// // BUG
 // fn test_fn(t: &dyn Fn() -> ()) {
 //     t();
 // }
@@ -29,62 +30,64 @@
 // }
 
 // fn main() {
-//     let x = T { _value: 10 };
-//     test_own(x.clone());
+    // let x = T { _value: 10 };
+    // test_own(x.clone());
 
-//     let x = T { _value: 10 };
-//     test_borrow(&x);
+    // let x = T { _value: 10 };
+    // test_borrow(&x);
 
-//     let mut x = T { _value: 10 };
-//     test_mut_borrow(&mut x);
+    // let mut x = T { _value: 10 };
+    // test_mut_borrow(&mut x);
 
-// let mut x = test_own as fn(T);
-// x = test as fn(T);
-// x(T { _value: 10 });
+    // let mut x = test_own as fn(T);
+    // x = test as fn(T);
+    // x(T { _value: 10 });
 
-// let y = &test_own;
-// y(x.clone());
+    // let x = T { _value: 10 };
 
-// let z = test_own;
-// z(x.clone());
+    // let y = &test_own;
+    // y(x.clone());
 
-// let lambda = |t: T, t2: T| {
-//     let x = T { _value: 10 };
-//     test_own(x);
-// };
-// lambda(x.clone(), x.clone());
+    // let z = test_own;
+    // z(x.clone());
 
-// let lambda = |t: &T| {
-//     let x = T { _value: 10 };
-//     test_own(x);
-// };
-// lambda(&x.clone());
+    // let lambda = |t: T, t2: T| {
+    //     let x = T { _value: 10 };
+    //     test_own(x);
+    // };
+    // lambda(x.clone(), x.clone());
 
-// let lambda = |bbox: std::boxed::Box<dyn Fn() -> T>| {
-//     let x = T { _value: 10 };
-//     test_own(x);
-// };
-// lambda(std::boxed::Box::new(|| x.clone()));
+    // let lambda = |t: &T| {
+    //     let x = T { _value: 10 };
+    //     test_own(x);
+    // };
+    // lambda(&x.clone());
 
-// // BUG
-// let lambda = |llambda: &dyn Fn(T) -> T| {
-//     let x = T { _value: 10 };
-//     test_own(x);
-// };
+    // let lambda = |bbox: std::boxed::Box<dyn Fn() -> T>| {
+    //     let x = T { _value: 10 };
+    //     test_own(x);
+    // };
+    // lambda(std::boxed::Box::new(|| x.clone()));
 
-// lambda(&|_| x.clone());
-// let lambda = |llambda: &dyn Fn() -> ()| {
-//     llambda();
-// };
-// lambda(&|| {
-//     let x = T { _value: 10 };
-//     test_own(x.clone());
-// });
+    // // BUG
+    // let lambda = |llambda: &dyn Fn(T) -> T| {
+    //     let x = T { _value: 10 };
+    //     test_own(x);
+    // };
 
-// test_fn(&|| {
-//     let x = T { _value: 10 };
-//     test_own(x.clone());
-// });
+    // lambda(&|_| x.clone());
+    // let lambda = |llambda: &dyn Fn() -> ()| {
+    //     llambda();
+    // };
+    // lambda(&|| {
+    //     let x = T { _value: 10 };
+    //     test_own(x.clone());
+    // });
+
+    // test_fn(&|| {
+    //     let x = T { _value: 10 };
+    //     test_own(x.clone());
+    // });
 // }
 
 // mod Test {
@@ -94,89 +97,103 @@
 
 // ====================================================================================
 
-#[derive(Clone)]
-pub struct T {
-    _value: i32,
-}
+// #[derive(Clone)]
+// pub struct T {
+//     _value: i32,
+// }
 
-#[derive(Clone, Copy)]
-struct U {
-    _value: i32,
-}
+// impl T {
+//     fn test_method(self) {
+//         let _ = self;
+//     }
+// }
 
-// Constants
-fn test_const(t: T) {
-    let _ = t;
-}
+// #[derive(Clone, Copy)]
+// struct U {
+//     _value: i32,
+// }
 
-// Ownership transfer
-fn test_move(t: T) {
-    let _ = t;
-}
+// impl U {
+//     fn test_method(self) {
+//         let _ = self;
+//     }
+// }
 
-// Borrowing
-fn test_copy(t: &T) {
-    let _ = t;
-}
+// // Constants
+// fn test_const(t: T) {
+//     let _ = t;
+// }
 
-// Mutable borrowing
-fn test_copy_mut(t: &mut T) {
-    let _ = t;
-}
+// // Ownership transfer
+// fn test_move(t: T) {
+//     let _ = t;
+// }
 
-fn test_const_ref(t: &T) {
-    let _ = t;
-}
+// // Borrowing
+// fn test_copy(t: &T) {
+//     let _ = t;
+// }
 
-fn main() {
-    const xtmp: &T = &T { _value: 10 };
-    test_const_ref(xtmp);
+// // Mutable borrowing
+// fn test_copy_mut(t: &mut T) {
+//     let _ = t;
+// }
 
-    const xc: T = T { _value: 10 };
-    test_const(xc);
+// fn test_const_ref(t: &T) {
+//     let _ = t;
+// }
 
-    let x = T { _value: 10 };
-    test_move(x);
+// fn main() {
+//     const xtmp: &T = &T { _value: 10 };
+//     test_const_ref(xtmp);
 
-    let x = T { _value: 10 };
-    test_move(x.clone());
+//     const xc: T = T { _value: 10 };
+//     test_const(xc);
 
-    let x = T { _value: 10 };
-    test_copy(&x);
+//     let x = T { _value: 10 };
+//     test_move(x);
 
-    let mut x = T { _value: 10 };
-    test_copy_mut(&mut x);
+//     let x = T { _value: 10 };
+//     test_move(x.clone());
+//     x.test_method();
 
-    let x = U { _value: 10 };
-    test_for_u(x);
-    let copy_x = x;
+//     let x = T { _value: 10 };
+//     test_copy(&x);
 
-    let mut x = U { _value: 10 };
-    x.test_self_ref_mut();
-    x.test_self_ref();
-    x.test_self();
-}
+//     let mut x = T { _value: 10 };
+//     test_copy_mut(&mut x);
 
-fn test_for_u(u: U) {
-    let _ = u;
-}
+//     let x = U { _value: 10 };
+//     test_for_u(x);
+//     let copy_x = x; // We can use x after the call to test_for_u because U is Copy
+//     x.test_method();
 
-trait Trait {
-    fn test_self_ref_mut(&mut self);
-    fn test_self_ref(&self);
-    fn test_self(self);
-}
+//     let mut x = U { _value: 10 };
+//     x.test_self_ref_mut();
+//     x.test_self_ref();
+//     x.test_self();
+// }
 
-impl Trait for U {
-    fn test_self_ref_mut(&mut self) {
-        let _ = self;
-    }
+// fn test_for_u(u: U) {
+//     let _ = u;
+// }
 
-    fn test_self_ref(&self) {
-        let _ = self;
-    }
+// trait Trait {
+//     fn test_self_ref_mut(&mut self);
+//     fn test_self_ref(&self);
+//     fn test_self(self);
+// }
 
-    fn test_self(self) {
-        let _ = self;
-    }
-}
+// impl Trait for U {
+//     fn test_self_ref_mut(&mut self) {
+//         let _ = self;
+//     }
+
+//     fn test_self_ref(&self) {
+//         let _ = self;
+//     }
+
+//     fn test_self(self) {
+//         let _ = self;
+//     }
+// }
