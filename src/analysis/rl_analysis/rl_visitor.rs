@@ -25,6 +25,20 @@ enum CallKind {
     Unknown,
 }
 
+struct RlTy<'tcx, 'a> {
+    _ty: &'a ty::Ty<'tcx>,
+    _mutability: mir::Mutability,
+}
+
+impl<'tcx, 'a> RlTy<'tcx, 'a> {
+    fn new(ty: &'a ty::Ty<'tcx>, mutability: mir::Mutability) -> Self {
+        Self {
+            _ty: ty,
+            _mutability: mutability,
+        }
+    }
+}
+
 pub struct RLVisitor<'tcx, 'a, G>
 where
     G: RLGraph + Default + Clone + Serialize,
@@ -37,12 +51,24 @@ where
     stack_local_def_id: Vec<(DefId, &'a IndexVec<mir::Local, mir::LocalDecl<'tcx>>)>,
 
     // Abstract domain/state.
-    // Map of places and their rvalues.
+    // Map of places and their rvalues, this refers to the local_def_id we are visiting.
     // It is used to keep track of the rvalue of a local variable.
     // It is a vector because a local variable can be assigned multiple times.
     // During the visit the last rvalue is always the last assigned value.
+    //
+    // Basically, it is used to retrieve the function that is called
+    // when it is aliased to a local variable.
+    //
     // See `visit_local` function.
     map_place_rvalue: rustc_hash::FxHashMap<mir::Local, Vec<mir::Rvalue<'tcx>>>,
+
+    // Abstract domain/state.
+    // Map of places and their types, this refers to the local_def_id we are visiting.
+    // It is used to keep track of the type of a local variable.
+    //
+    // Basically, it is used to weight the edges of the graph.
+    // The weight of the edge is the type of the argument.
+    map_place_ty: rustc_hash::FxHashMap<mir::Local, RlTy<'tcx, 'a>>,
 
     // Map from def_id to the index of the node in the graph.
     // It is used to retrieve the index of the node in the graph
@@ -67,6 +93,7 @@ where
             analyzer,
             stack_local_def_id: Vec::default(),
             map_place_rvalue: rustc_hash::FxHashMap::default(),
+            map_place_ty: rustc_hash::FxHashMap::default(),
             rl_graph_index_map: rustc_hash::FxHashMap::default(),
             rl_graph: G::default(),
         }
@@ -89,6 +116,12 @@ where
             self.map_place_rvalue.insert(local, Vec::new());
         }
 
+        // It ensures that the local variable is in the map.
+        for (local, local_decl) in body.local_decls.iter_enumerated() {
+            let ty = RlTy::new(&local_decl.ty, local_decl.mutability);
+            self.map_place_ty.insert(local, ty);
+        }
+
         let message = self.analyzer.modify_if_needed(
             format!("Visiting the local_def_id: {:?}", local_def_id).as_str(),
             TextMod::Blue,
@@ -100,6 +133,12 @@ where
         for (local, _) in body.local_decls.iter_enumerated() {
             self.map_place_rvalue.remove(&local);
         }
+
+        // Clear map_place_ty
+        for (local, _) in body.local_decls.iter_enumerated() {
+            self.map_place_ty.remove(&local);
+        }
+
         self.stack_local_def_id.pop();
     }
 
