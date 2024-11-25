@@ -624,20 +624,17 @@ where
     fn visit_rvalue(&mut self, rvalue: &mir::Rvalue<'tcx>, location: mir::Location) {
         let mut message = format!("Visiting the rvalue ({:?}, {:?})", rvalue, location);
         match rvalue {
-            mir::Rvalue::Use(operand) => {
-                match operand {
-                    mir::Operand::Copy(place) => {
-                        message.push_str(format!(" Use: copy operand: {:?}", place).as_str());
-                    }
-                    mir::Operand::Move(place) => {
-                        message.push_str(format!(" Use: operand: {:?}", place).as_str());
-                    }
-                    mir::Operand::Constant(const_operand) => {
-                        message.push_str(format!(" Use: operand: {:?}", const_operand).as_str());
-                    }
+            mir::Rvalue::Use(operand) => match operand {
+                mir::Operand::Copy(place) => {
+                    message.push_str(format!(" Use: copy operand: {:?}", place).as_str());
                 }
-                // message.push_str(format!(" Use: operand: {:?}", operand).as_str());
-            }
+                mir::Operand::Move(place) => {
+                    message.push_str(format!(" Use: operand: {:?}", place).as_str());
+                }
+                mir::Operand::Constant(const_operand) => {
+                    message.push_str(format!(" Use: operand: {:?}", const_operand).as_str());
+                }
+            },
             mir::Rvalue::Repeat(operand, _) => {
                 message.push_str(format!(" Repeat: operand: {:?}", operand).as_str());
             }

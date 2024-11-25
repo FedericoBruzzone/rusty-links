@@ -1,4 +1,46 @@
-= Notes
+# Notes
+
+| Operator Kind  |
+|----------------|
+| move           |
+| copy           |
+| const          |
+
+We can trait the operator `kind` as a multiplier on the `kind` of the place it is annotating.
+
+- `move` a place which is a `Clone` -> bad
+- `move` a place which is an `Adt` -> good
+- `move` a place which is a `Const` -> top 
+
+## 2024-11-25
+
+Example in which we prefer to work with the optmiized version of the MIR.
+We have the `copy` keyword in the optimized version of the MIR.
+
+Unoptimized:
+```rust
+bb2: {
+    StorageDead(_3);
+    StorageDead(_2);
+    StorageLive(_5);
+    _5 = T { _value: const 10_i32 };
+    StorageLive(_6);
+    StorageLive(_7);
+    StorageLive(_8);
+    _8 = &_5;
+    _7 = &(*_8);
+    _6 = test_borrow(move _7) -> [return: bb3, unwind continue];
+}
+```
+
+Optimized:
+```rust
+bb2: {
+    _5 = T { _value: const 10_i32 };
+    _7 = &_5;
+    _6 = test_borrow(copy _7) -> [return: bb3, unwind continue];
+}
+```
 
 
 ## 2024-11-25
