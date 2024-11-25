@@ -44,9 +44,6 @@ fn main() -> () {
     let _3: ();
     let mut _4: fn(T);
     let mut _5: T;
-    let _6: ();
-    let mut _7: fn(T);
-    let mut _8: T;
     scope 1 {
         debug x => _1;
     }
@@ -70,18 +67,6 @@ fn main() -> () {
         StorageDead(_5);
         StorageDead(_4);
         StorageDead(_3);
-        StorageLive(_6);
-        StorageLive(_7);
-        _7 = copy _1;
-        StorageLive(_8);
-        _8 = T { _value: const 10_i32 };
-        _6 = move _7(move _8) -> [return: bb2, unwind continue];
-    }
-
-    bb2: {
-        StorageDead(_8);
-        StorageDead(_7);
-        StorageDead(_6);
         _0 = const ();
         StorageDead(_1);
         return;
@@ -133,7 +118,6 @@ digraph {
     5 [ label="i5: DefId(2:3675 ~ core[47af]::ops::function::Fn::call)"]
     6 [ label="i6: DefId(0:6 ~ local_tests[65b4]::test_own)"]
     0 -> 1 [ label="1.00"]
-    3 -> 2 [ label="1.00"]
     3 -> 2 [ label="1.00"]
     4 -> 5 [ label="2.00"]
 }

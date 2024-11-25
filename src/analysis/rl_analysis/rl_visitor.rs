@@ -36,11 +36,13 @@ where
     // becuase the MIR does not allow nested functions.
     stack_local_def_id: Vec<(DefId, &'a IndexVec<mir::Local, mir::LocalDecl<'tcx>>)>,
 
-    // Map of places and their rvalues
-    // The value can be None when the respective local go out of scope,
-    // thanks to the borrow checker semantic.
+    // Abstract domain/state.
+    // Map of places and their rvalues.
+    // It is used to keep track of the rvalue of a local variable.
+    // It is a vector because a local variable can be assigned multiple times.
+    // During the visit the last rvalue is always the last assigned value.
     // See `visit_local` function.
-    map_place_rvalue: rustc_hash::FxHashMap<mir::Local, Option<mir::Rvalue<'tcx>>>,
+    map_place_rvalue: rustc_hash::FxHashMap<mir::Local, Vec<mir::Rvalue<'tcx>>>,
 
     // Map from def_id to the index of the node in the graph.
     // It is used to retrieve the index of the node in the graph
@@ -84,7 +86,7 @@ where
 
         // It ensures that the local variable is in the map.
         for (local, _) in body.local_decls.iter_enumerated() {
-            self.map_place_rvalue.insert(local, None);
+            self.map_place_rvalue.insert(local, Vec::new());
         }
 
         let message = self.analyzer.modify_if_needed(
@@ -156,7 +158,7 @@ where
     /// The function `test_own` is then called with the local `_15`.
     /// At this point, we need to retrieve the def_id of the function `test_own`.
     fn retrieve_fun_def_id(&self, local: mir::Local) -> (DefId, CallKind) {
-        match &self.map_place_rvalue[&local] {
+        match &self.map_place_rvalue[&local].last() {
             // _5 = function
             // _5 = const main::promoted[0]
             Some(mir::Rvalue::Use(mir::Operand::Constant(const_operand))) => {
@@ -312,7 +314,7 @@ where
                 // It is safe to assume that the second argument is a tuple by construction.
                 let args = match &args[1].node {
                     mir::Operand::Move(place) => {
-                        let tuple = self.map_place_rvalue[&place.local].as_ref().unwrap();
+                        let tuple = self.map_place_rvalue[&place.local].last().unwrap();
                         match tuple {
                             mir::Rvalue::Aggregate(aggregate_kind, index_vec) => {
                                 match **aggregate_kind {
@@ -559,7 +561,9 @@ where
         );
         log::trace!("{}", message);
         self.map_place_rvalue
-            .insert(place.local, Some(rvalue.clone()));
+            .get_mut(&place.local)
+            .unwrap()
+            .push(rvalue.clone());
         self.super_assign(place, rvalue, location);
     }
 
