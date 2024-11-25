@@ -38,61 +38,59 @@
 //     let mut x = T { _value: 10 };
 //     test_mut_borrow(&mut x);
 
-    // let mut x = test_own as fn(T);
-    // x = test as fn(T);
-    // x(T { _value: 10 });
+// let mut x = test_own as fn(T);
+// x = test as fn(T);
+// x(T { _value: 10 });
 
+// let y = &test_own;
+// y(x.clone());
 
-    // let y = &test_own;
-    // y(x.clone());
+// let z = test_own;
+// z(x.clone());
 
-    // let z = test_own;
-    // z(x.clone());
+// let lambda = |t: T, t2: T| {
+//     let x = T { _value: 10 };
+//     test_own(x);
+// };
+// lambda(x.clone(), x.clone());
 
-    // let lambda = |t: T, t2: T| {
-    //     let x = T { _value: 10 };
-    //     test_own(x);
-    // };
-    // lambda(x.clone(), x.clone());
+// let lambda = |t: &T| {
+//     let x = T { _value: 10 };
+//     test_own(x);
+// };
+// lambda(&x.clone());
 
-    // let lambda = |t: &T| {
-    //     let x = T { _value: 10 };
-    //     test_own(x);
-    // };
-    // lambda(&x.clone());
+// let lambda = |bbox: std::boxed::Box<dyn Fn() -> T>| {
+//     let x = T { _value: 10 };
+//     test_own(x);
+// };
+// lambda(std::boxed::Box::new(|| x.clone()));
 
-    // let lambda = |bbox: std::boxed::Box<dyn Fn() -> T>| {
-    //     let x = T { _value: 10 };
-    //     test_own(x);
-    // };
-    // lambda(std::boxed::Box::new(|| x.clone()));
+// // BUG
+// let lambda = |llambda: &dyn Fn(T) -> T| {
+//     let x = T { _value: 10 };
+//     test_own(x);
+// };
 
-    // // BUG 
-    // let lambda = |llambda: &dyn Fn(T) -> T| {
-    //     let x = T { _value: 10 };
-    //     test_own(x);
-    // };
+// lambda(&|_| x.clone());
+// let lambda = |llambda: &dyn Fn() -> ()| {
+//     llambda();
+// };
+// lambda(&|| {
+//     let x = T { _value: 10 };
+//     test_own(x.clone());
+// });
 
-    // lambda(&|_| x.clone());
-    // let lambda = |llambda: &dyn Fn() -> ()| {
-    //     llambda();
-    // };
-    // lambda(&|| {
-    //     let x = T { _value: 10 };
-    //     test_own(x.clone());
-    // });
-
-    // test_fn(&|| {
-    //     let x = T { _value: 10 };
-    //     test_own(x.clone());
-    // });
+// test_fn(&|| {
+//     let x = T { _value: 10 };
+//     test_own(x.clone());
+// });
 // }
 
 // mod Test {
 //     use super::T;
 //     pub fn test_own(t: T) {}
 // }
-
 
 // ====================================================================================
 
@@ -125,6 +123,10 @@ fn test_const_ref(t: &T) {
     let _ = t;
 }
 
+fn ok() -> i32 {
+    10
+}
+
 fn main() {
     const xtmp: &T = &T { _value: 10 };
     test_const_ref(xtmp);
@@ -143,4 +145,11 @@ fn main() {
 
     let mut x = T { _value: 10 };
     test_copy_mut(&mut x);
+
+    use rand;
+    let r: i32 = rand::random::<i32>();
+
+    let x = ok();
+
+    for i in 0..10 {}
 }

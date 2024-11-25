@@ -356,6 +356,15 @@ where
         }
     }
 
+    fn push_or_insert_map_place_rvalue(&mut self, local: mir::Local, rvalue: mir::Rvalue<'tcx>) {
+        match self.map_place_rvalue.get_mut(&local) {
+            Some(rvalues) => rvalues.push(rvalue),
+            None => {
+                self.map_place_rvalue.insert(local, vec![rvalue]);
+            }
+        }
+    }
+
     /// Add an edge between the current visited function and the function that is called.
     /// The edge is weighted by the arguments of the function call.
     fn add_edge(&mut self, def_id: DefId, args: Vec<mir::Operand<'tcx>>) {
@@ -499,21 +508,31 @@ where
             kind,
         } = terminator;
         match kind {
+            // We can analyze the `call_source` field of the `Call` variant
+            // to know if it a `Normal` call.
             mir::TerminatorKind::Call {
                 func,
                 args,
                 destination,
-                ..
+                target,
+                unwind,
+                call_source,
+                fn_span,
             } => {
                 let message = self.analyzer.modify_if_needed(
                     format!(
-                        "Visiting the call: {:?}, {:?}, {:?}",
-                        func, args, destination
+                        "Visiting the call: {:?}, {:?}, {:?}, {:?}, {:?}, {:?}, {:?}",
+                        func, args, destination, target, unwind, call_source, fn_span
                     )
                     .as_str(),
                     TextMod::Magenta,
                 );
                 log::trace!("{}", message);
+
+                self.push_or_insert_map_place_rvalue(
+                    destination.local,
+                    mir::Rvalue::Use(func.clone()), // TODO: We should find the return value of the function
+                );
 
                 let (def_id, call_kind) = self.retrieve_call_def_id(func);
                 if call_kind != CallKind::Unknown {
@@ -560,10 +579,7 @@ where
             TextMod::Magenta,
         );
         log::trace!("{}", message);
-        self.map_place_rvalue
-            .get_mut(&place.local)
-            .unwrap()
-            .push(rvalue.clone());
+        self.push_or_insert_map_place_rvalue(place.local, rvalue.clone());
         self.super_assign(place, rvalue, location);
     }
 
