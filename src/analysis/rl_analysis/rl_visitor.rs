@@ -162,7 +162,7 @@ where
                 (def_id, call_kind)
             }
             mir::Operand::Constant(const_operand) => {
-                let (def_id, call_kind) = self.retrieve_fun_meth_closure_def_id(const_operand);
+                let (def_id, call_kind) = self.get_fun_meth_closure_def_id(const_operand);
                 log::debug!(
                     "Retrieving(Constant) the def_id {:?} of the {:?} that is called",
                     def_id,
@@ -195,6 +195,13 @@ where
     /// The function `test_own` is then called with the local `_15`.
     /// At this point, we need to retrieve the def_id of the function `test_own`.
     fn retrieve_fun_def_id(&self, local: mir::Local) -> (DefId, CallKind) {
+        fn fun_or_method(def_id: DefId, analyzer: &Analyzer) -> (DefId, CallKind) {
+            if let Some(def_id) = analyzer.tcx.impl_of_method(def_id) {
+                return (def_id, CallKind::Method);
+            }
+            (def_id, CallKind::Function)
+        }
+
         match &self.map_place_rvalue[&local].last() {
             // _5 = function
             // _5 = const main::promoted[0]
@@ -211,9 +218,13 @@ where
                 // and this case is handled in the `retrieve_fun_meth_closure_def_id` which is called
                 // by `retrieve_call_def_id` in case of a constant (which is exactly this case).
                 match const_operand.const_.ty().kind() {
-                    ty::TyKind::FnDef(def_id, _generic_args) => (*def_id, CallKind::Function),
+                    ty::TyKind::FnDef(def_id, _generic_args) => {
+                        fun_or_method(*def_id, self.analyzer)
+                    }
                     ty::TyKind::Ref(_region, ty, _mutability) => match ty.kind() {
-                        ty::TyKind::FnDef(def_id, _generic_args) => (*def_id, CallKind::Function),
+                        ty::TyKind::FnDef(def_id, _generic_args) => {
+                            fun_or_method(*def_id, self.analyzer)
+                        }
                         _ => unreachable!(),
                     },
                     _ => {
@@ -270,10 +281,11 @@ where
     }
 
     // TODO: Handle Clone
-    /// Retrieve the def_id of the function or closure.
+    /// Get the def_id of the function or closure.
     ///
-    /// This function assumes that the constant is a function,
-    /// in case it is a closure, it tries to interpret it as a closure.
+    /// This function assumes that the const_operand is a function.
+    /// In case it is a method, it tries to interpret it as a method.
+    /// In case it is a closure, it tries to interpret it as a closure.
     ///
     /// For instance, in the following MIR:
     /// ```rust,ignore
@@ -285,7 +297,7 @@ where
     /// }
     /// ```
     /// In this case the first arguments it `move _17` that is a reference to the closure.
-    fn retrieve_fun_meth_closure_def_id(
+    fn get_fun_meth_closure_def_id(
         &self,
         const_operand: &mir::ConstOperand<'tcx>,
     ) -> (DefId, CallKind) {
