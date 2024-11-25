@@ -99,6 +99,11 @@ struct T {
     _value: i32,
 }
 
+#[derive(Clone, Copy)]
+struct U {
+    _value: i32,
+}
+
 // Constants
 fn test_const(t: T) {
     let _ = t;
@@ -123,10 +128,6 @@ fn test_const_ref(t: &T) {
     let _ = t;
 }
 
-fn ok() -> i32 {
-    10
-}
-
 fn main() {
     const xtmp: &T = &T { _value: 10 };
     test_const_ref(xtmp);
@@ -146,10 +147,11 @@ fn main() {
     let mut x = T { _value: 10 };
     test_copy_mut(&mut x);
 
-    use rand;
-    let r: i32 = rand::random::<i32>();
+    let x = U { _value: 10 };
+    test_for_u(x);
+    let copy_x = x;
+}
 
-    let x = ok();
-
-    for i in 0..10 {}
+fn test_for_u(u: U) {
+    let _ = u;
 }

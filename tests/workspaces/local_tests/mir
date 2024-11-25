@@ -14,6 +14,18 @@ fn <impl at src/main.rs:97:10: 97:15>::clone(_1: &T) -> T {
     }
 }
 
+fn <impl at src/main.rs:102:10: 102:15>::clone(_1: &U) -> U {
+    debug self => _1;
+    let mut _0: U;
+    scope 1 {
+    }
+
+    bb0: {
+        _0 = copy (*_1);
+        return;
+    }
+}
+
 fn test_const(_1: T) -> () {
     debug t => _1;
     let mut _0: ();
@@ -69,15 +81,6 @@ fn test_const_ref(_1: &T) -> () {
     }
 }
 
-fn ok() -> i32 {
-    let mut _0: i32;
-
-    bb0: {
-        _0 = const 10_i32;
-        return;
-    }
-}
-
 fn main() -> () {
     let mut _0: ();
     let _1: ();
@@ -92,11 +95,7 @@ fn main() -> () {
     let _12: &T;
     let _14: ();
     let mut _15: &mut T;
-    let mut _18: std::ops::Range<i32>;
-    let mut _19: std::ops::Range<i32>;
-    let mut _21: std::option::Option<i32>;
-    let mut _22: &mut std::ops::Range<i32>;
-    let mut _23: isize;
+    let _17: ();
     scope 1 {
         debug x => _4;
         let _6: T;
@@ -108,20 +107,11 @@ fn main() -> () {
                 let mut _13: T;
                 scope 4 {
                     debug x => _13;
-                    let _16: i32;
+                    let _16: U;
                     scope 5 {
-                        debug r => _16;
-                        let _17: i32;
+                        debug x => _16;
                         scope 6 {
-                            debug x => _17;
-                            let mut _20: std::ops::Range<i32>;
-                            scope 7 {
-                                debug iter => _20;
-                                let _24: i32;
-                                scope 8 {
-                                    debug i => _24;
-                                }
-                            }
+                            debug copy_x => _16;
                         }
                     }
                 }
@@ -166,43 +156,11 @@ fn main() -> () {
     }
 
     bb7: {
-        _16 = rand::random::<i32>() -> [return: bb8, unwind continue];
+        _16 = U { _value: const 10_i32 };
+        _17 = test_for_u(copy _16) -> [return: bb8, unwind continue];
     }
 
     bb8: {
-        _17 = ok() -> [return: bb9, unwind continue];
-    }
-
-    bb9: {
-        _19 = std::ops::Range::<i32> { start: const 0_i32, end: const 10_i32 };
-        _18 = <std::ops::Range<i32> as std::iter::IntoIterator>::into_iter(move _19) -> [return: bb10, unwind continue];
-    }
-
-    bb10: {
-        _20 = move _18;
-        goto -> bb11;
-    }
-
-    bb11: {
-        _22 = &mut _20;
-        _21 = <std::ops::Range<i32> as std::iter::Iterator>::next(copy _22) -> [return: bb12, unwind continue];
-    }
-
-    bb12: {
-        _23 = discriminant(_21);
-        switchInt(move _23) -> [0: bb15, 1: bb14, otherwise: bb13];
-    }
-
-    bb13: {
-        unreachable;
-    }
-
-    bb14: {
-        _24 = copy ((_21 as Some).0: i32);
-        goto -> bb11;
-    }
-
-    bb15: {
         return;
     }
 }
@@ -242,31 +200,37 @@ const main::xc: T = {
         return;
     }
 }
+
+fn test_for_u(_1: U) -> () {
+    debug u => _1;
+    let mut _0: ();
+    scope 1 {
+    }
+
+    bb0: {
+        return;
+    }
+}
 digraph {
-    0 [ label="i0: DefId(0:16 ~ local_tests[fb88]::{impl#0}::clone)"]
-    1 [ label="i1: DefId(0:3 ~ local_tests[fb88]::test_const)"]
-    2 [ label="i2: DefId(0:4 ~ local_tests[fb88]::test_move)"]
-    3 [ label="i3: DefId(0:5 ~ local_tests[fb88]::test_copy)"]
-    4 [ label="i4: DefId(0:6 ~ local_tests[fb88]::test_copy_mut)"]
-    5 [ label="i5: DefId(0:7 ~ local_tests[fb88]::test_const_ref)"]
-    6 [ label="i6: DefId(0:8 ~ local_tests[fb88]::ok)"]
-    7 [ label="i7: DefId(0:9 ~ local_tests[fb88]::main)"]
+    0 [ label="i0: DefId(0:15 ~ local_tests[65b4]::{impl#0}::clone)"]
+    1 [ label="i1: DefId(0:19 ~ local_tests[65b4]::{impl#1}::clone)"]
+    2 [ label="i2: DefId(0:3 ~ local_tests[65b4]::test_const)"]
+    3 [ label="i3: DefId(0:4 ~ local_tests[65b4]::test_move)"]
+    4 [ label="i4: DefId(0:5 ~ local_tests[65b4]::test_copy)"]
+    5 [ label="i5: DefId(0:6 ~ local_tests[65b4]::test_copy_mut)"]
+    6 [ label="i6: DefId(0:7 ~ local_tests[65b4]::test_const_ref)"]
+    7 [ label="i7: DefId(0:8 ~ local_tests[65b4]::main)"]
     8 [ label="i8: DefId(2:2922 ~ core[47af]::clone::Clone::clone)"]
-    9 [ label="i9: DefId(20:796 ~ rand[7b48]::random)"]
-    10 [ label="i10: DefId(2:8567 ~ core[47af]::iter::traits::collect::IntoIterator::into_iter)"]
-    11 [ label="i11: DefId(2:8748 ~ core[47af]::iter::traits::iterator::Iterator::next)"]
-    12 [ label="i12: DefId(0:10 ~ local_tests[fb88]::main::xtmp)"]
-    13 [ label="i13: DefId(0:11 ~ local_tests[fb88]::main::xc)"]
-    7 -> 5 [ label="1.00"]
-    7 -> 1 [ label="1.00"]
-    7 -> 2 [ label="1.00"]
-    7 -> 8 [ label="1.00"]
+    9 [ label="i9: DefId(0:11 ~ local_tests[65b4]::test_for_u)"]
+    10 [ label="i10: DefId(0:9 ~ local_tests[65b4]::main::xtmp)"]
+    11 [ label="i11: DefId(0:10 ~ local_tests[65b4]::main::xc)"]
+    7 -> 6 [ label="1.00"]
     7 -> 2 [ label="1.00"]
     7 -> 3 [ label="1.00"]
+    7 -> 8 [ label="1.00"]
+    7 -> 3 [ label="1.00"]
     7 -> 4 [ label="1.00"]
-    7 -> 9 [ label="-0.00"]
-    7 -> 6 [ label="-0.00"]
-    7 -> 10 [ label="1.00"]
-    7 -> 11 [ label="1.00"]
+    7 -> 5 [ label="1.00"]
+    7 -> 9 [ label="1.00"]
 }
 

@@ -25,17 +25,14 @@ enum CallKind {
     Unknown,
 }
 
-struct RlTy<'tcx, 'a> {
-    _ty: &'a ty::Ty<'tcx>,
-    _mutability: mir::Mutability,
-}
+#[warn(dead_code)]
+struct RlTy<'tcx, 'a>(&'a ty::TyKind<'tcx>);
 
-impl<'tcx, 'a> RlTy<'tcx, 'a> {
-    fn new(ty: &'a ty::Ty<'tcx>, mutability: mir::Mutability) -> Self {
-        Self {
-            _ty: ty,
-            _mutability: mutability,
-        }
+impl<'tcx> std::ops::Deref for RlTy<'tcx, '_> {
+    type Target = ty::TyKind<'tcx>;
+
+    fn deref(&self) -> &Self::Target {
+        self.0
     }
 }
 
@@ -118,7 +115,7 @@ where
 
         // It ensures that the local variable is in the map.
         for (local, local_decl) in body.local_decls.iter_enumerated() {
-            let ty = RlTy::new(&local_decl.ty, local_decl.mutability);
+            let ty = RlTy(local_decl.ty.kind());
             self.map_place_ty.insert(local, ty);
         }
 
