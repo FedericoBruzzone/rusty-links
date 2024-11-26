@@ -1,6 +1,6 @@
 mod utils;
 
-mod test_snippets {
+mod test_snippets_simple {
     // use pretty_assertions::assert_eq;
     use crate::utils::run_with_cargo_bin_and_snippet;
 
