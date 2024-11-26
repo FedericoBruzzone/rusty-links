@@ -144,34 +144,34 @@ fn test_const_ref(t: &T) {
 }
 
 fn main() {
-    // const xtmp: &T = &T { _value: 10 };
-    // test_const_ref(xtmp);
+    const xtmp: &T = &T { _value: 10 };
+    test_const_ref(xtmp);
 
-    // const xc: T = T { _value: 10 };
-    // test_const(xc);
+    const xc: T = T { _value: 10 };
+    test_const(xc);
 
-    // let x = T { _value: 10 };
-    // test_move(x);
+    let x = T { _value: 10 };
+    test_move(x);
 
-    // let x = T { _value: 10 };
-    // test_move(x.clone());
-    // x.test_method();
+    let x = T { _value: 10 };
+    test_move(x.clone());
+    x.test_method();
 
-    // let x = T { _value: 10 };
-    // test_copy(&x);
+    let x = T { _value: 10 };
+    test_copy(&x);
 
-    // let mut x = T { _value: 10 };
-    // test_copy_mut(&mut x);
+    let mut x = T { _value: 10 };
+    test_copy_mut(&mut x);
 
-    // let x = U { _value: 10 };
-    // test_for_u(x);
-    // let copy_x = x; // We can use x after the call to test_for_u because U is Copy
-    // x.test_method();
+    let x = U { _value: 10 };
+    test_for_u(x);
+    let copy_x = x; // We can use x after the call to test_for_u because U is Copy
+    x.test_method();
 
-    // let mut x = U { _value: 10 };
-    // x.test_self_ref_mut();
-    // x.test_self_ref();
-    // x.test_self();
+    let mut x = U { _value: 10 };
+    x.test_self_ref_mut();
+    x.test_self_ref();
+    x.test_self();
 
     let method = U::test_method;
     let x = U { _value: 10 };

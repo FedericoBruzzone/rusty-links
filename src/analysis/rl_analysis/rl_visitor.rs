@@ -5,6 +5,8 @@ use rustc_hir::def_id::DefIndex;
 use rustc_index::IndexVec;
 use rustc_middle::mir;
 use rustc_middle::mir::visit::Visitor;
+use rustc_middle::mir::Operand;
+use rustc_middle::mir::Rvalue;
 use rustc_middle::ty;
 use rustc_span::def_id::DefId;
 use rustc_span::def_id::LocalDefId;
@@ -22,14 +24,24 @@ use super::Analyzer;
 enum CallKind {
     Function,
     Closure,
-    Method, // It does not add any information, it is treated as a function
+    Method,
     Unknown,
 }
 
+/// RlRy is a struct that represents the type of a place (local variable).
+/// It is used to weight the edges of the graph.
+/// At the beginning, all the places are assigned to its RlTy, since
+/// all the type are known in the local_decls of the MIR.
 struct RlTy<'tcx, 'a> {
     _kind: &'a ty::TyKind<'tcx>,
     _mutability: ty::Mutability,
     _user_binding: Option<mir::BindingForm<'tcx>>,
+}
+
+#[allow(dead_code)]
+enum RlValue<'tcx> {
+    TermCall(mir::Operand<'tcx>),
+    Rvalue(mir::Rvalue<'tcx>),
 }
 
 pub struct RLVisitor<'tcx, 'a, G>
@@ -53,7 +65,7 @@ where
     // when it is aliased to a local variable.
     //
     // See `visit_local` function.
-    map_place_rvalue: rustc_hash::FxHashMap<mir::Local, Vec<mir::Rvalue<'tcx>>>,
+    map_place_rvalue: rustc_hash::FxHashMap<mir::Local, Vec<RlValue<'tcx>>>,
 
     // Abstract domain/state.
     // Map of places and their types, this refers to the local_def_id we are visiting.
@@ -210,7 +222,7 @@ where
         match &self.map_place_rvalue[&local].last() {
             // _5 = function
             // _5 = const main::promoted[0]
-            Some(mir::Rvalue::Use(mir::Operand::Constant(const_operand))) => {
+            Some(RlValue::Rvalue(Rvalue::Use(Operand::Constant(const_operand)))) => {
                 // It seems to be safa at this point to assume that the constant is a function.
                 // A closure (as terminator) can never be in the form:
                 // ```rust, ignore
@@ -243,15 +255,15 @@ where
                 }
             }
             // _5 = copy (*_6)
-            Some(mir::Rvalue::Use(mir::Operand::Copy(place))) => {
+            Some(RlValue::Rvalue(Rvalue::Use(Operand::Copy(place)))) => {
                 self.retrieve_fun_def_id(place.local)
             }
             // _5 = move _6
-            Some(mir::Rvalue::Use(mir::Operand::Move(place))) => {
+            Some(RlValue::Rvalue(Rvalue::Use(Operand::Move(place)))) => {
                 self.retrieve_fun_def_id(place.local)
             }
             // _5 = &(*10)
-            Some(mir::Rvalue::Ref(_region, _borrow_kind, place)) => {
+            Some(RlValue::Rvalue(Rvalue::Ref(_region, _borrow_kind, place))) => {
                 self.retrieve_fun_def_id(place.local)
             }
             // In rust is:
@@ -273,15 +285,10 @@ where
             //     _3 = move _4(move _5) -> [return: bb1, unwind continue];
             // }
             // ```
-            Some(mir::Rvalue::Cast(_cast_kind, operand, _ty)) => self.retrieve_call_def_id(operand),
-            err => {
-                log::error!(
-                    "The local ({:?}) is not a function, but an error: {:?}",
-                    local,
-                    err
-                );
-                unreachable!()
+            Some(RlValue::Rvalue(Rvalue::Cast(_cast_kind, operand, _ty))) => {
+                self.retrieve_call_def_id(operand)
             }
+            _ => unreachable!(),
         }
     }
 
@@ -387,7 +394,7 @@ where
                     mir::Operand::Move(place) => {
                         let tuple = self.map_place_rvalue[&place.local].last().unwrap();
                         match tuple {
-                            mir::Rvalue::Aggregate(aggregate_kind, index_vec) => {
+                            RlValue::Rvalue(Rvalue::Aggregate(aggregate_kind, index_vec)) => {
                                 match **aggregate_kind {
                                     mir::AggregateKind::Tuple => {
                                         let mut args = Vec::new();
@@ -427,11 +434,11 @@ where
         }
     }
 
-    fn push_or_insert_map_place_rvalue(&mut self, local: mir::Local, rvalue: mir::Rvalue<'tcx>) {
+    fn push_or_insert_map_place_rlvalue(&mut self, local: mir::Local, rl_value: RlValue<'tcx>) {
         match self.map_place_rvalue.get_mut(&local) {
-            Some(rvalues) => rvalues.push(rvalue),
+            Some(rvalues) => rvalues.push(rl_value),
             None => {
-                self.map_place_rvalue.insert(local, vec![rvalue]);
+                self.map_place_rvalue.insert(local, vec![rl_value]);
             }
         }
     }
@@ -600,9 +607,9 @@ where
                 );
                 log::trace!("{}", message);
 
-                self.push_or_insert_map_place_rvalue(
+                self.push_or_insert_map_place_rlvalue(
                     destination.local,
-                    mir::Rvalue::Use(func.clone()), // TODO: We should find the return value of the function
+                    RlValue::TermCall(func.clone()), // mir::Rvalue::Use(func.clone()), // TODO: We should find the return value of the function
                 );
 
                 let (def_id, call_kind) = self.retrieve_call_def_id(func);
@@ -650,11 +657,10 @@ where
             TextMod::Magenta,
         );
         log::trace!("{}", message);
-        self.push_or_insert_map_place_rvalue(place.local, rvalue.clone());
+        self.push_or_insert_map_place_rlvalue(place.local, RlValue::Rvalue(rvalue.clone()));
         self.super_assign(place, rvalue, location);
     }
 
-    // NOT NEEDED
     // Call by the super_assign
     fn visit_place(
         &mut self,
@@ -671,7 +677,7 @@ where
         self.super_place(place, context, location);
     }
 
-    // Call by the super_assign
+    // Call by the super_assign and super_place
     fn visit_local(
         &mut self,
         local: mir::Local,

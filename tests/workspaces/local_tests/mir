@@ -123,38 +123,270 @@ fn test_const_ref(_1: &T) -> () {
 
 fn main() -> () {
     let mut _0: ();
-    let _1: fn(U) {U::test_method};
-    let _3: ();
-    let mut _4: fn(U) {U::test_method};
-    let mut _5: U;
+    let _1: ();
+    let mut _2: &T;
+    let _3: &T;
+    let _4: ();
+    let _5: T;
+    let _6: ();
+    let mut _7: T;
+    let _9: ();
+    let mut _10: T;
+    let mut _11: &T;
+    let _12: ();
+    let mut _13: T;
+    let _15: ();
+    let mut _16: &T;
+    let _17: &T;
+    let _19: ();
+    let mut _20: &mut T;
+    let mut _21: &mut T;
+    let _23: ();
+    let mut _24: U;
+    let _26: ();
+    let mut _27: U;
+    let _29: ();
+    let mut _30: &mut U;
+    let _31: ();
+    let mut _32: &U;
+    let _33: ();
+    let mut _34: U;
+    let _37: ();
+    let mut _38: fn(U) {U::test_method};
+    let mut _39: U;
     scope 1 {
-        debug method => _1;
-        let _2: U;
+        debug x => _5;
+        let _8: T;
         scope 2 {
-            debug x => _2;
+            debug x => _8;
+            let _14: T;
+            scope 3 {
+                debug x => _14;
+                let mut _18: T;
+                scope 4 {
+                    debug x => _18;
+                    let _22: U;
+                    scope 5 {
+                        debug x => _22;
+                        let _25: U;
+                        scope 6 {
+                            debug copy_x => _25;
+                            let mut _28: U;
+                            scope 7 {
+                                debug x => _28;
+                                let _35: fn(U) {U::test_method};
+                                scope 8 {
+                                    debug method => _35;
+                                    let _36: U;
+                                    scope 9 {
+                                        debug x => _36;
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
         }
     }
 
     bb0: {
         StorageLive(_1);
-        _1 = U::test_method;
         StorageLive(_2);
-        _2 = U { _value: const 10_i32 };
         StorageLive(_3);
-        StorageLive(_4);
-        _4 = copy _1;
-        StorageLive(_5);
-        _5 = copy _2;
-        _3 = move _4(move _5) -> [return: bb1, unwind continue];
+        _3 = const main::xtmp;
+        _2 = &(*_3);
+        _1 = test_const_ref(move _2) -> [return: bb1, unwind continue];
     }
 
     bb1: {
-        StorageDead(_5);
-        StorageDead(_4);
-        StorageDead(_3);
-        _0 = const ();
         StorageDead(_2);
+        StorageDead(_3);
         StorageDead(_1);
+        StorageLive(_4);
+        _4 = test_const(const main::xc) -> [return: bb2, unwind continue];
+    }
+
+    bb2: {
+        StorageDead(_4);
+        StorageLive(_5);
+        _5 = T { _value: const 10_i32 };
+        StorageLive(_6);
+        StorageLive(_7);
+        _7 = move _5;
+        _6 = test_move(move _7) -> [return: bb3, unwind continue];
+    }
+
+    bb3: {
+        StorageDead(_7);
+        StorageDead(_6);
+        StorageLive(_8);
+        _8 = T { _value: const 10_i32 };
+        StorageLive(_9);
+        StorageLive(_10);
+        StorageLive(_11);
+        _11 = &_8;
+        _10 = <T as std::clone::Clone>::clone(move _11) -> [return: bb4, unwind continue];
+    }
+
+    bb4: {
+        StorageDead(_11);
+        _9 = test_move(move _10) -> [return: bb5, unwind continue];
+    }
+
+    bb5: {
+        StorageDead(_10);
+        StorageDead(_9);
+        StorageLive(_12);
+        StorageLive(_13);
+        _13 = move _8;
+        _12 = T::test_method(move _13) -> [return: bb6, unwind continue];
+    }
+
+    bb6: {
+        StorageDead(_13);
+        StorageDead(_12);
+        StorageLive(_14);
+        _14 = T { _value: const 10_i32 };
+        StorageLive(_15);
+        StorageLive(_16);
+        StorageLive(_17);
+        _17 = &_14;
+        _16 = &(*_17);
+        _15 = test_copy(move _16) -> [return: bb7, unwind continue];
+    }
+
+    bb7: {
+        StorageDead(_16);
+        StorageDead(_17);
+        StorageDead(_15);
+        StorageLive(_18);
+        _18 = T { _value: const 10_i32 };
+        StorageLive(_19);
+        StorageLive(_20);
+        StorageLive(_21);
+        _21 = &mut _18;
+        _20 = &mut (*_21);
+        _19 = test_copy_mut(move _20) -> [return: bb8, unwind continue];
+    }
+
+    bb8: {
+        StorageDead(_20);
+        StorageDead(_21);
+        StorageDead(_19);
+        StorageLive(_22);
+        _22 = U { _value: const 10_i32 };
+        StorageLive(_23);
+        StorageLive(_24);
+        _24 = copy _22;
+        _23 = test_for_u(move _24) -> [return: bb9, unwind continue];
+    }
+
+    bb9: {
+        StorageDead(_24);
+        StorageDead(_23);
+        StorageLive(_25);
+        _25 = copy _22;
+        StorageLive(_26);
+        StorageLive(_27);
+        _27 = copy _22;
+        _26 = U::test_method(move _27) -> [return: bb10, unwind continue];
+    }
+
+    bb10: {
+        StorageDead(_27);
+        StorageDead(_26);
+        StorageLive(_28);
+        _28 = U { _value: const 10_i32 };
+        StorageLive(_29);
+        StorageLive(_30);
+        _30 = &mut _28;
+        _29 = <U as Trait>::test_self_ref_mut(move _30) -> [return: bb11, unwind continue];
+    }
+
+    bb11: {
+        StorageDead(_30);
+        StorageDead(_29);
+        StorageLive(_31);
+        StorageLive(_32);
+        _32 = &_28;
+        _31 = <U as Trait>::test_self_ref(move _32) -> [return: bb12, unwind continue];
+    }
+
+    bb12: {
+        StorageDead(_32);
+        StorageDead(_31);
+        StorageLive(_33);
+        StorageLive(_34);
+        _34 = copy _28;
+        _33 = <U as Trait>::test_self(move _34) -> [return: bb13, unwind continue];
+    }
+
+    bb13: {
+        StorageDead(_34);
+        StorageDead(_33);
+        StorageLive(_35);
+        _35 = U::test_method;
+        StorageLive(_36);
+        _36 = U { _value: const 10_i32 };
+        StorageLive(_37);
+        StorageLive(_38);
+        _38 = copy _35;
+        StorageLive(_39);
+        _39 = copy _36;
+        _37 = move _38(move _39) -> [return: bb14, unwind continue];
+    }
+
+    bb14: {
+        StorageDead(_39);
+        StorageDead(_38);
+        StorageDead(_37);
+        _0 = const ();
+        StorageDead(_36);
+        StorageDead(_35);
+        StorageDead(_28);
+        StorageDead(_25);
+        StorageDead(_22);
+        StorageDead(_18);
+        StorageDead(_14);
+        StorageDead(_8);
+        StorageDead(_5);
+        return;
+    }
+}
+
+const main::xtmp: &T = {
+    let mut _0: &T;
+    let _1: &T;
+    let _2: T;
+    let mut _3: &T;
+
+    bb0: {
+        StorageLive(_1);
+        _3 = const main::xtmp::promoted[0];
+        _1 = &(*_3);
+        _0 = &(*_1);
+        StorageDead(_1);
+        return;
+    }
+}
+
+const main::xtmp::promoted[0]: &T = {
+    let mut _0: &T;
+    let mut _1: T;
+
+    bb0: {
+        _1 = T { _value: const 10_i32 };
+        _0 = &_1;
+        return;
+    }
+}
+
+const main::xc: T = {
+    let mut _0: T;
+
+    bb0: {
+        _0 = T { _value: const 10_i32 };
         return;
     }
 }
@@ -207,10 +439,10 @@ fn <impl at src/main.rs:191:1: 191:17>::test_self(_1: U) -> () {
     }
 }
 digraph {
-    0 [ label="i0: DefId(0:25 ~ local_tests[65b4]::{impl#3}::clone)"]
+    0 [ label="i0: DefId(0:27 ~ local_tests[65b4]::{impl#3}::clone)"]
     1 [ label="i1: DefId(2:2922 ~ core[47af]::clone::Clone::clone)"]
     2 [ label="i2: DefId(0:4 ~ local_tests[65b4]::{impl#0}::test_method)"]
-    3 [ label="i3: DefId(0:29 ~ local_tests[65b4]::{impl#4}::clone)"]
+    3 [ label="i3: DefId(0:31 ~ local_tests[65b4]::{impl#4}::clone)"]
     4 [ label="i4: DefId(0:6 ~ local_tests[65b4]::{impl#1}::test_method)"]
     5 [ label="i5: DefId(0:7 ~ local_tests[65b4]::test_const)"]
     6 [ label="i6: DefId(0:8 ~ local_tests[65b4]::test_move)"]
@@ -218,12 +450,31 @@ digraph {
     8 [ label="i8: DefId(0:10 ~ local_tests[65b4]::test_copy_mut)"]
     9 [ label="i9: DefId(0:11 ~ local_tests[65b4]::test_const_ref)"]
     10 [ label="i10: DefId(0:12 ~ local_tests[65b4]::main)"]
-    11 [ label="i11: DefId(0:5 ~ local_tests[65b4]::{impl#1})"]
-    12 [ label="i12: DefId(0:13 ~ local_tests[65b4]::test_for_u)"]
-    13 [ label="i13: DefId(0:19 ~ local_tests[65b4]::{impl#2}::test_self_ref_mut)"]
-    14 [ label="i14: DefId(0:20 ~ local_tests[65b4]::{impl#2}::test_self_ref)"]
-    15 [ label="i15: DefId(0:21 ~ local_tests[65b4]::{impl#2}::test_self)"]
+    11 [ label="i11: DefId(0:3 ~ local_tests[65b4]::{impl#0})"]
+    12 [ label="i12: DefId(0:15 ~ local_tests[65b4]::test_for_u)"]
+    13 [ label="i13: DefId(0:5 ~ local_tests[65b4]::{impl#1})"]
+    14 [ label="i14: DefId(0:17 ~ local_tests[65b4]::Trait::test_self_ref_mut)"]
+    15 [ label="i15: DefId(0:18 ~ local_tests[65b4]::Trait::test_self_ref)"]
+    16 [ label="i16: DefId(0:19 ~ local_tests[65b4]::Trait::test_self)"]
+    17 [ label="i17: DefId(0:13 ~ local_tests[65b4]::main::xtmp)"]
+    18 [ label="i18: DefId(0:14 ~ local_tests[65b4]::main::xc)"]
+    19 [ label="i19: DefId(0:21 ~ local_tests[65b4]::{impl#2}::test_self_ref_mut)"]
+    20 [ label="i20: DefId(0:22 ~ local_tests[65b4]::{impl#2}::test_self_ref)"]
+    21 [ label="i21: DefId(0:23 ~ local_tests[65b4]::{impl#2}::test_self)"]
     0 -> 1 [ label="1.00"]
+    10 -> 9 [ label="1.00"]
+    10 -> 5 [ label="1.00"]
+    10 -> 6 [ label="1.00"]
+    10 -> 1 [ label="1.00"]
+    10 -> 6 [ label="1.00"]
     10 -> 11 [ label="1.00"]
+    10 -> 7 [ label="1.00"]
+    10 -> 8 [ label="1.00"]
+    10 -> 12 [ label="1.00"]
+    10 -> 13 [ label="1.00"]
+    10 -> 14 [ label="1.00"]
+    10 -> 15 [ label="1.00"]
+    10 -> 16 [ label="1.00"]
+    10 -> 13 [ label="1.00"]
 }
 
