@@ -26,14 +26,17 @@ enum CallKind {
     Unknown,
 }
 
-#[warn(dead_code)]
-struct RlTy<'tcx, 'a>(&'a ty::TyKind<'tcx>);
+struct RlTy<'tcx, 'a> {
+    kind: &'a ty::TyKind<'tcx>,
+    _mutability: ty::Mutability,
+    _user_binding: Option<mir::BindingForm<'tcx>>,
+}
 
 impl<'tcx> std::ops::Deref for RlTy<'tcx, '_> {
     type Target = ty::TyKind<'tcx>;
 
     fn deref(&self) -> &Self::Target {
-        self.0
+        self.kind
     }
 }
 
@@ -116,7 +119,14 @@ where
 
         // It ensures that the local variable is in the map.
         for (local, local_decl) in body.local_decls.iter_enumerated() {
-            let ty = RlTy(local_decl.ty.kind());
+            let ty = RlTy {
+                kind: local_decl.ty.kind(),
+                _mutability: local_decl.mutability,
+                _user_binding: match local_decl.local_info.as_ref().assert_crate_local().as_ref() {
+                    mir::LocalInfo::User(binding_form) => Some(binding_form.clone()),
+                    _ => None,
+                },
+            };
             self.map_place_ty.insert(local, ty);
         }
 
