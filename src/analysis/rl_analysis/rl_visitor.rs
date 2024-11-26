@@ -114,9 +114,12 @@ where
             let ty = RlTy {
                 _kind: local_decl.ty.kind(),
                 _mutability: local_decl.mutability,
-                _user_binding: match local_decl.local_info.as_ref().assert_crate_local().as_ref() {
-                    mir::LocalInfo::User(binding_form) => Some(binding_form.clone()),
-                    _ => None,
+                _user_binding: match local_decl.local_info.as_ref() {
+                    mir::ClearCrossCrate::Set(v) => match v.as_ref() {
+                        mir::LocalInfo::User(binding_form) => Some(binding_form.clone()),
+                        _ => None,
+                    },
+                    mir::ClearCrossCrate::Clear => None,
                 },
             };
             self.map_place_ty.insert(local, ty);
