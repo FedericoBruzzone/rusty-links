@@ -1,6 +1,6 @@
 mod utils;
 
-mod test_snippets {
+mod test_snippets_simple_call_closure {
     // use pretty_assertions::assert_eq;
     use crate::utils::run_with_cargo_bin_and_snippet;
 
@@ -39,7 +39,7 @@ mod test_snippets {
     }
 
     #[test]
-    fn test_simple_call_with_file_call_closure_directly_from_clusure() -> Result<(), String> {
+    fn test_simple_call_with_file_call_closure_directly_from_closure() -> Result<(), String> {
         let snippet =
             &std::fs::read_to_string(format!("{FOLDER}/call_closure_directly_from_closure.rs"))
                 .unwrap();
