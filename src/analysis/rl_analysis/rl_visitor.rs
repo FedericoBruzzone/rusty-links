@@ -325,7 +325,7 @@ where
                     let krate_name = self.analyzer.tcx.crate_name(def_id.krate);
                     if krate_name == rustc_span::Symbol::intern("core") {
                         let fun_name = self.analyzer.tcx.def_path_str(*def_id);
-                        if fun_name == "core::clone::Clone::clone" {
+                        if fun_name == "std::clone::Clone::clone" {
                             return (*def_id, CallKind::Clone);
                         }
                     }
@@ -369,6 +369,7 @@ where
 
                     // Check if it is external but specified as dependency in the Cargo.toml
                     if !RUSTC_DEPENDENCIES.contains(&krate_name.as_str()) {
+                        // From external crates we can inkove only functions
                         return (*def_id, CallKind::Function);
                     }
                 }
@@ -639,9 +640,7 @@ where
                     CallKind::Unknown => unreachable!(),
                 }
 
-                self.push_or_insert_map_place_rlvalue(destination.local, RlValue::TermCall(def_id));
-
-                if call_kind != CallKind::Clone || call_kind != CallKind::Unknown {
+                if call_kind != CallKind::Unknown && call_kind != CallKind::Clone {
                     let args = self.update_args(args, call_kind);
                     self.add_edge(def_id, args);
                 }
