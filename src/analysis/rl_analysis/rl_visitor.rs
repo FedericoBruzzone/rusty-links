@@ -22,6 +22,7 @@ use super::Analyzer;
 
 #[derive(Debug, PartialEq)]
 enum CallKind {
+    Clone,
     Function,
     Closure,
     Method,
@@ -40,8 +41,12 @@ struct RlTy<'tcx, 'a> {
 
 #[allow(dead_code)]
 enum RlValue<'tcx> {
-    TermCall(mir::Operand<'tcx>),
+    // A MIR rvalue.
     Rvalue(mir::Rvalue<'tcx>),
+    // A terminator call with the def_id of the function that is called.
+    TermCall(DefId),
+    // A terminator call with the def_id of the operand that is cloned.
+    TermCallClone(mir::Operand<'tcx>),
 }
 
 pub struct RLVisitor<'tcx, 'a, G>
@@ -315,6 +320,17 @@ where
     ) -> (DefId, CallKind) {
         match const_operand.const_.ty().kind() {
             ty::TyKind::FnDef(def_id, generic_args) => {
+                // Check if it is a clone call
+                if !def_id.is_local() {
+                    let krate_name = self.analyzer.tcx.crate_name(def_id.krate);
+                    if krate_name == rustc_span::Symbol::intern("core") {
+                        let fun_name = self.analyzer.tcx.def_path_str(*def_id);
+                        if fun_name == "core::clone::Clone::clone" {
+                            return (*def_id, CallKind::Clone);
+                        }
+                    }
+                }
+
                 // Check if the def_id is a method
                 if let Some(def_id) = self.analyzer.tcx.impl_of_method(*def_id) {
                     return (def_id, CallKind::Method);
@@ -343,7 +359,6 @@ where
 
                     // Check if it is in the core crate
                     if krate_name == rustc_span::Symbol::intern("core") {
-                        // TODO: Handle Clone
                         return (*def_id, CallKind::Function);
                     }
 
@@ -427,10 +442,8 @@ where
                 };
                 args
             }
-            CallKind::Unknown => {
-                log::error!("The call kind is unknown");
-                unreachable!()
-            }
+            CallKind::Clone => unreachable!(),
+            CallKind::Unknown => unreachable!(),
         }
     }
 
@@ -607,13 +620,28 @@ where
                 );
                 log::trace!("{}", message);
 
-                self.push_or_insert_map_place_rlvalue(
-                    destination.local,
-                    RlValue::TermCall(func.clone()), // mir::Rvalue::Use(func.clone()), // TODO: We should find the return value of the function
-                );
-
                 let (def_id, call_kind) = self.retrieve_call_def_id(func);
-                if call_kind != CallKind::Unknown {
+
+                // Update the map_place_rvalue with the destination of the call.
+                match call_kind {
+                    CallKind::Clone => {
+                        self.push_or_insert_map_place_rlvalue(
+                            destination.local,
+                            RlValue::TermCallClone(args[0].node.clone()),
+                        );
+                    }
+                    CallKind::Function | CallKind::Closure | CallKind::Method => {
+                        self.push_or_insert_map_place_rlvalue(
+                            destination.local,
+                            RlValue::TermCall(def_id),
+                        );
+                    }
+                    CallKind::Unknown => unreachable!(),
+                }
+
+                self.push_or_insert_map_place_rlvalue(destination.local, RlValue::TermCall(def_id));
+
+                if call_kind != CallKind::Clone || call_kind != CallKind::Unknown {
                     let args = self.update_args(args, call_kind);
                     self.add_edge(def_id, args);
                 }
