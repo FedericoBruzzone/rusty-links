@@ -1,8 +1,9 @@
+use crate::analysis::rl_analysis::rl_context::RlTy;
+use crate::analysis::rl_analysis::rl_context::RlValue;
 use crate::analysis::utils::TextMod;
 use crate::analysis::utils::RUSTC_DEPENDENCIES;
 
 use rustc_hir::def_id::DefIndex;
-use rustc_index::IndexVec;
 use rustc_middle::mir;
 use rustc_middle::mir::visit::Visitor;
 use rustc_middle::mir::Operand;
@@ -14,78 +15,20 @@ use rustc_span::source_map::Spanned;
 use serde::de::DeserializeOwned;
 use serde::Serialize;
 
+use super::rl_context::CallKind;
+use super::rl_context::RlContext;
 use super::rl_graph::RLGraph;
 use super::rl_graph::RLGraphEdge;
 use super::rl_graph::RLGraphNode;
 use super::rl_graph::{RLEdge, RLIndex, RLNode};
 use super::Analyzer;
 
-#[derive(Debug, PartialEq)]
-enum CallKind {
-    Clone,
-    Function,
-    Closure,
-    Method,
-    Unknown,
-}
-
-/// RlRy is a struct that represents the type of a place (local variable).
-/// It is used to weight the edges of the graph.
-/// At the beginning, all the places are assigned to its RlTy, since
-/// all the type are known in the local_decls of the MIR.
-struct RlTy<'tcx, 'a> {
-    _kind: &'a ty::TyKind<'tcx>,
-    _mutability: ty::Mutability,
-    _user_binding: Option<mir::BindingForm<'tcx>>,
-}
-
-#[allow(dead_code)]
-enum RlValue<'tcx> {
-    // A MIR rvalue.
-    Rvalue(mir::Rvalue<'tcx>),
-    // A terminator call with the def_id of the function that is called.
-    TermCall(DefId),
-    // A terminator call with the def_id of the operand that is cloned.
-    TermCallClone(mir::Operand<'tcx>),
-}
-
 pub struct RLVisitor<'tcx, 'a, G>
 where
     G: RLGraph + Default + Clone + Serialize,
 {
     analyzer: &'a Analyzer<'tcx>,
-
-    // Stack of local_def_id and local_decls.
-    // It should enought to keep track the current function and its local variables,
-    // becuase the MIR does not allow nested functions.
-    stack_local_def_id: Vec<(DefId, &'a IndexVec<mir::Local, mir::LocalDecl<'tcx>>)>,
-
-    // Abstract domain/state.
-    // Map of places and their rvalues, this refers to the local_def_id we are visiting.
-    // It is used to keep track of the rvalue of a local variable.
-    // It is a vector because a local variable can be assigned multiple times.
-    // During the visit the last rvalue is always the last assigned value.
-    //
-    // Basically, it is used to retrieve the function that is called
-    // when it is aliased to a local variable.
-    //
-    // See `visit_local` function.
-    map_place_rvalue: rustc_hash::FxHashMap<mir::Local, Vec<RlValue<'tcx>>>,
-
-    // Abstract domain/state.
-    // Map of places and their types, this refers to the local_def_id we are visiting.
-    // It is used to keep track of the type of a local variable.
-    //
-    // Basically, it is used to weight the edges of the graph.
-    // The weight of the edge is the type of the argument.
-    map_place_ty: rustc_hash::FxHashMap<mir::Local, RlTy<'tcx, 'a>>,
-
-    // Map from def_id to the index of the node in the graph.
-    // It is used to retrieve the index of the node in the graph
-    // when we need to add an edge.
-    rl_graph_index_map: rustc_hash::FxHashMap<DefId, G::Index>,
-
-    // The graph that represents the relations between functions and their calls.
+    context: RlContext<'tcx, 'a, G>,
     rl_graph: G,
 }
 
@@ -101,10 +44,7 @@ where
     pub fn new(analyzer: &'a Analyzer<'tcx>) -> Self {
         Self {
             analyzer,
-            stack_local_def_id: Vec::default(),
-            map_place_rvalue: rustc_hash::FxHashMap::default(),
-            map_place_ty: rustc_hash::FxHashMap::default(),
-            rl_graph_index_map: rustc_hash::FxHashMap::default(),
+            context: RlContext::new(),
             rl_graph: G::default(),
         }
     }
@@ -118,28 +58,29 @@ where
     pub fn visit_local_def_id(&mut self, local_def_id: LocalDefId, body: &'a mir::Body<'tcx>) {
         let _ = self.add_node_if_needed(local_def_id.to_def_id());
 
-        self.stack_local_def_id
+        self.context
+            .stack_local_def_id
             .push((local_def_id.to_def_id(), &body.local_decls));
 
         // It ensures that the local variable is in the map.
         for (local, _) in body.local_decls.iter_enumerated() {
-            self.map_place_rvalue.insert(local, Vec::new());
+            self.context.map_place_rlvalue.insert(local, Vec::new());
         }
 
         // It ensures that the local variable is in the map.
         for (local, local_decl) in body.local_decls.iter_enumerated() {
-            let ty = RlTy {
-                _kind: local_decl.ty.kind(),
-                _mutability: local_decl.mutability,
-                _user_binding: match local_decl.local_info.as_ref() {
+            let ty = RlTy::new(
+                local_decl.ty.kind(),
+                local_decl.mutability,
+                match local_decl.local_info.as_ref() {
                     mir::ClearCrossCrate::Set(v) => match v.as_ref() {
                         mir::LocalInfo::User(binding_form) => Some(binding_form.clone()),
                         _ => None,
                     },
                     mir::ClearCrossCrate::Clear => None,
                 },
-            };
-            self.map_place_ty.insert(local, ty);
+            );
+            self.context.map_place_ty.insert(local, ty);
         }
 
         let message = self.analyzer.modify_if_needed(
@@ -151,15 +92,15 @@ where
 
         // Clear map_place_rvalue
         for (local, _) in body.local_decls.iter_enumerated() {
-            self.map_place_rvalue.remove(&local);
+            self.context.map_place_rlvalue.remove(&local);
         }
 
         // Clear map_place_ty
         for (local, _) in body.local_decls.iter_enumerated() {
-            self.map_place_ty.remove(&local);
+            self.context.map_place_ty.remove(&local);
         }
 
-        self.stack_local_def_id.pop();
+        self.context.stack_local_def_id.pop();
     }
 
     /// Retrieve the def_id of the function that is called.
@@ -224,7 +165,7 @@ where
             (def_id, CallKind::Function)
         }
 
-        match &self.map_place_rvalue[&local].last() {
+        match &self.context.map_place_rlvalue[&local].last() {
             // _5 = function
             // _5 = const main::promoted[0]
             Some(RlValue::Rvalue(Rvalue::Use(Operand::Constant(const_operand)))) => {
@@ -408,7 +349,7 @@ where
                 // It is safe to assume that the second argument is a tuple by construction.
                 let args = match &args[1].node {
                     mir::Operand::Move(place) => {
-                        let tuple = self.map_place_rvalue[&place.local].last().unwrap();
+                        let tuple = self.context.map_place_rlvalue[&place.local].last().unwrap();
                         match tuple {
                             RlValue::Rvalue(Rvalue::Aggregate(aggregate_kind, index_vec)) => {
                                 match **aggregate_kind {
@@ -449,25 +390,28 @@ where
     }
 
     fn push_or_insert_map_place_rlvalue(&mut self, local: mir::Local, rl_value: RlValue<'tcx>) {
-        match self.map_place_rvalue.get_mut(&local) {
+        match self.context.map_place_rlvalue.get_mut(&local) {
             Some(rvalues) => rvalues.push(rl_value),
             None => {
-                self.map_place_rvalue.insert(local, vec![rl_value]);
+                self.context.map_place_rlvalue.insert(local, vec![rl_value]);
             }
         }
     }
 
     /// Add an edge between the current visited function and the function that is called.
     /// The edge is weighted by the arguments of the function call.
-    fn add_edge(&mut self, def_id: DefId, args: Vec<mir::Operand<'tcx>>) {
+    /// The `to_def_id` is the def_id of the function that is called.
+    /// Abstractly, the `from_def_id` is the def_id of the current visited function.
+    fn add_edge(&mut self, to_def_id: DefId, args: Vec<mir::Operand<'tcx>>) {
         log::debug!(
             "Adding an edge between the current visited function ({:?}) and the function that is called ({:?}) with the arguments: {:?}",
-            self.stack_local_def_id.last().unwrap().0,
-            def_id,
+            self.context.stack_local_def_id.last().unwrap().0,
+            to_def_id,
             args
         );
-        let fun_caller = self.rl_graph_index_map[&self.stack_local_def_id.last().unwrap().0];
-        let fun_callee = self.add_node_if_needed(def_id);
+        let fun_caller =
+            self.context.rl_graph_index_map[&self.context.stack_local_def_id.last().unwrap().0];
+        let fun_callee = self.add_node_if_needed(to_def_id);
         let arg_weights = args
             .iter()
             .map(|arg| self.resolve_arg_weight(arg))
@@ -484,13 +428,13 @@ where
     /// the called function.
     fn add_node_if_needed(&mut self, def_id: DefId) -> G::Index {
         if let std::collections::hash_map::Entry::Vacant(entry) =
-            self.rl_graph_index_map.entry(def_id)
+            self.context.rl_graph_index_map.entry(def_id)
         {
             let node = RLNode::create(def_id);
             let index = self.rl_graph.rl_add_node(node);
             entry.insert(index);
         }
-        self.rl_graph_index_map[&def_id]
+        self.context.rl_graph_index_map[&def_id]
     }
 
     fn resolve_arg_weight(&self, _operand: &mir::Operand<'tcx>) -> f32 {
@@ -730,7 +674,7 @@ where
                     // then the value is not None.
                     // For intance, the first `bb`` can have a `StorageLive` for a local
                     // that is only initialized in the local_decls, but never assigned.
-                    assert!(self.map_place_rvalue.contains_key(&local))
+                    assert!(self.context.map_place_rlvalue.contains_key(&local))
                 }
                 mir::visit::NonUseContext::AscribeUserTy(_variance) => {}
                 mir::visit::NonUseContext::VarDebugInfo => {}
