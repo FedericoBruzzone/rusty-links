@@ -1,12 +1,9 @@
-use crate::analysis::rl_analysis::rl_context::RlTy;
-use crate::analysis::rl_analysis::rl_context::RlValue;
+use crate::analysis::rl_analysis::rl_context::RLTy;
+use crate::analysis::rl_analysis::rl_context::RLValue;
 use crate::analysis::utils::TextMod;
-use crate::analysis::utils::RUSTC_DEPENDENCIES;
 
-use rustc_hir::def_id::DefIndex;
 use rustc_middle::mir;
 use rustc_middle::mir::visit::Visitor;
-use rustc_middle::mir::Operand;
 use rustc_middle::mir::Rvalue;
 use rustc_middle::ty;
 use rustc_span::def_id::DefId;
@@ -16,7 +13,7 @@ use serde::de::DeserializeOwned;
 use serde::Serialize;
 
 use super::rl_context::CallKind;
-use super::rl_context::RlContext;
+use super::rl_context::RLContext;
 use super::rl_graph::RLGraph;
 use super::rl_graph::RLGraphEdge;
 use super::rl_graph::RLGraphNode;
@@ -28,7 +25,7 @@ where
     G: RLGraph + Default + Clone + Serialize,
 {
     analyzer: &'a Analyzer<'tcx>,
-    context: RlContext<'tcx, 'a, G>,
+    context: RLContext<'tcx, 'a, G>,
     rl_graph: G,
 }
 
@@ -44,7 +41,7 @@ where
     pub fn new(analyzer: &'a Analyzer<'tcx>) -> Self {
         Self {
             analyzer,
-            context: RlContext::new(),
+            context: RLContext::new(),
             rl_graph: G::default(),
         }
     }
@@ -69,7 +66,7 @@ where
 
         // It ensures that the local variable is in the map.
         for (local, local_decl) in body.local_decls.iter_enumerated() {
-            let ty = RlTy::new(
+            let ty = RLTy::new(
                 local_decl.ty.kind(),
                 local_decl.mutability,
                 match local_decl.local_info.as_ref() {
@@ -103,231 +100,6 @@ where
         self.context.stack_local_def_id.pop();
     }
 
-    /// Retrieve the def_id of the function that is called.
-    /// This function call the `retrieve_fun_def_id` or `retrieve_fun_or_closure_def_id`
-    /// which recursively retrieve the def_id of the function.
-    fn retrieve_call_def_id(&self, func: &mir::Operand<'tcx>) -> (DefId, CallKind) {
-        match func {
-            mir::Operand::Copy(place) => {
-                let (def_id, call_kind) = self.retrieve_fun_def_id(place.local);
-                log::debug!(
-                    "Retrieving(Copy) the def_id of the function (local: {:?}) that is called",
-                    place.local
-                );
-                (def_id, call_kind)
-            }
-            mir::Operand::Move(place) => {
-                let (def_id, call_kind) = self.retrieve_fun_def_id(place.local);
-                log::debug!(
-                    "Retrieving(Move) the def_id of the function (local: {:?}) that is called",
-                    place.local
-                );
-                (def_id, call_kind)
-            }
-            mir::Operand::Constant(const_operand) => {
-                let (def_id, call_kind) = self.get_fun_meth_closure_def_id(const_operand);
-                log::debug!(
-                    "Retrieving(Constant) the def_id {:?} of the {:?} that is called",
-                    def_id,
-                    call_kind
-                );
-                (def_id, call_kind)
-            }
-        }
-    }
-
-    /// Recursively retrieve the def_id of the function.
-    /// This function assumes that the `local` is a function, so
-    /// it panics if it is not.
-    ///
-    /// For instance, in the following MIR:
-    /// ```rust,ignore
-    /// bb4: {
-    ///     // ...
-    ///     _11 = test_own;
-    ///    // ...
-    ///    _13 = copy _11;
-    ///    // ...
-    ///    _15 = &_1;
-    ///    _14 = <T as std::clone::Clone>::clone(move _15) -> [return: bb5, unwind continue];
-    /// }
-    /// ```
-    /// The function `test_own` is assigned to the local `_11`.
-    /// The local `_13` is a copy of the local `_11`.
-    /// The local `_15` is a reference to the local `_1`.
-    /// The function `test_own` is then called with the local `_15`.
-    /// At this point, we need to retrieve the def_id of the function `test_own`.
-    fn retrieve_fun_def_id(&self, local: mir::Local) -> (DefId, CallKind) {
-        fn fun_or_method(def_id: DefId, analyzer: &Analyzer) -> (DefId, CallKind) {
-            if let Some(def_id) = analyzer.tcx.impl_of_method(def_id) {
-                return (def_id, CallKind::Method);
-            }
-            (def_id, CallKind::Function)
-        }
-
-        match &self.context.map_place_rlvalue[&local].last() {
-            // _5 = function
-            // _5 = const main::promoted[0]
-            Some(RlValue::Rvalue(Rvalue::Use(Operand::Constant(const_operand)))) => {
-                // It seems to be safa at this point to assume that the constant is a function.
-                // A closure (as terminator) can never be in the form:
-                // ```rust, ignore
-                // _5 = move|copy _6
-                // ```
-                // because the closure is always in the form:
-                // ```rust, ignore
-                // _5 = {closure@src/main.rs:18:18: 18:20} ...
-                // ```
-                // and this case is handled in the `retrieve_fun_meth_closure_def_id` which is called
-                // by `retrieve_call_def_id` in case of a constant (which is exactly this case).
-                match const_operand.const_.ty().kind() {
-                    ty::TyKind::FnDef(def_id, _generic_args) => {
-                        fun_or_method(*def_id, self.analyzer)
-                    }
-                    ty::TyKind::Ref(_region, ty, _mutability) => match ty.kind() {
-                        ty::TyKind::FnDef(def_id, _generic_args) => {
-                            fun_or_method(*def_id, self.analyzer)
-                        }
-                        _ => unreachable!(),
-                    },
-                    _ => {
-                        log::error!(
-                            "The local ({:?}) is not a function, but a constant: {:?}",
-                            local,
-                            const_operand.const_.ty()
-                        );
-                        unreachable!()
-                    }
-                }
-            }
-            // _5 = copy (*_6)
-            Some(RlValue::Rvalue(Rvalue::Use(Operand::Copy(place)))) => {
-                self.retrieve_fun_def_id(place.local)
-            }
-            // _5 = move _6
-            Some(RlValue::Rvalue(Rvalue::Use(Operand::Move(place)))) => {
-                self.retrieve_fun_def_id(place.local)
-            }
-            // _5 = &(*10)
-            Some(RlValue::Rvalue(Rvalue::Ref(_region, _borrow_kind, place))) => {
-                self.retrieve_fun_def_id(place.local)
-            }
-            // In rust is:
-            //
-            // ```rust, ignore
-            // let mut x = test_own as fn(T);
-            // x = test as fn(T);
-            // x(T { _value: 10 });
-            // ```
-            //
-            // In MIR is translated as:
-            // ```rust, ignore
-            // bb0: {
-            //     _1 = test_own as fn(T) (PointerCoercion(ReifyFnPointer, AsCast));
-            //     _2 = test as fn(T) (PointerCoercion(ReifyFnPointer, AsCast));
-            //     _1 = move _2;
-            //     _4 = copy _1;
-            //     _5 = T { _value: const 10_i32 };
-            //     _3 = move _4(move _5) -> [return: bb1, unwind continue];
-            // }
-            // ```
-            Some(RlValue::Rvalue(Rvalue::Cast(_cast_kind, operand, _ty))) => {
-                self.retrieve_call_def_id(operand)
-            }
-            _ => unreachable!(),
-        }
-    }
-
-    // TODO: Handle Clone
-    /// Get the def_id of the function or closure.
-    ///
-    /// This function assumes that the const_operand is a function.
-    /// In case it is a method, it tries to interpret it as a method.
-    /// In case it is a closure, it tries to interpret it as a closure.
-    ///
-    /// For instance, in the following MIR:
-    /// ```rust,ignore
-    /// bb5: {
-    ///     _15 = {closure@src/main.rs:18:18: 18:20};
-    ///     _17 = &_15;
-    ///     _18 = ();
-    ///     _16 = <{closure@src/main.rs:18:18: 18:20} as std::ops::Fn<()>>::call(move _17, move _18) -> [return: bb6, unwind continue];
-    /// }
-    /// ```
-    /// In this case the first arguments it `move _17` that is a reference to the closure.
-    fn get_fun_meth_closure_def_id(
-        &self,
-        const_operand: &mir::ConstOperand<'tcx>,
-    ) -> (DefId, CallKind) {
-        match const_operand.const_.ty().kind() {
-            ty::TyKind::FnDef(def_id, generic_args) => {
-                // Check if it is a clone call
-                if !def_id.is_local() {
-                    let krate_name = self.analyzer.tcx.crate_name(def_id.krate);
-                    if krate_name == rustc_span::Symbol::intern("core") {
-                        let fun_name = self.analyzer.tcx.def_path_str(*def_id);
-                        if fun_name == "std::clone::Clone::clone" {
-                            return (*def_id, CallKind::Clone);
-                        }
-                    }
-                }
-
-                // Check if the def_id is a method
-                if let Some(def_id) = self.analyzer.tcx.impl_of_method(*def_id) {
-                    return (def_id, CallKind::Method);
-                }
-
-                // Interpret the generic_args as a closure
-                let closure_args = generic_args.as_closure().args;
-
-                if closure_args.len() > 1 {
-                    if let Some(ty) = closure_args[0].as_type() {
-                        if let ty::TyKind::Closure(closure_def_id, _substs) = ty.kind() {
-                            return (*closure_def_id, CallKind::Closure);
-                        }
-                    }
-                }
-
-                // Check if the def_id is a local function
-                if def_id.is_local() {
-                    return (*def_id, CallKind::Function);
-                }
-
-                // Check if the def_id is external
-                if !def_id.is_local() {
-                    // let def_path = self.analyzer.tcx.def_path(*def_id);
-                    let krate_name = self.analyzer.tcx.crate_name(def_id.krate);
-
-                    // Check if it is in the core crate
-                    if krate_name == rustc_span::Symbol::intern("core") {
-                        return (*def_id, CallKind::Function);
-                    }
-
-                    // Check if it is in the std crate
-                    if krate_name == rustc_span::Symbol::intern("std") {
-                        return (*def_id, CallKind::Function);
-                    }
-
-                    // Check if it is external but specified as dependency in the Cargo.toml
-                    if !RUSTC_DEPENDENCIES.contains(&krate_name.as_str()) {
-                        // From external crates we can inkove only functions
-                        return (*def_id, CallKind::Function);
-                    }
-                }
-
-                // The def_id should not be handled
-                (
-                    DefId {
-                        krate: def_id.krate,
-                        index: DefIndex::from_usize(0),
-                    },
-                    CallKind::Unknown,
-                )
-            }
-            _ => unreachable!(),
-        }
-    }
-
     /// Update the arguments of the function call.
     /// It returns a vector of the arguments.
     ///
@@ -351,7 +123,7 @@ where
                     mir::Operand::Move(place) => {
                         let tuple = self.context.map_place_rlvalue[&place.local].last().unwrap();
                         match tuple {
-                            RlValue::Rvalue(Rvalue::Aggregate(aggregate_kind, index_vec)) => {
+                            RLValue::Rvalue(Rvalue::Aggregate(aggregate_kind, index_vec)) => {
                                 match **aggregate_kind {
                                     mir::AggregateKind::Tuple => {
                                         let mut args = Vec::new();
@@ -386,15 +158,6 @@ where
             }
             CallKind::Clone => unreachable!(),
             CallKind::Unknown => unreachable!(),
-        }
-    }
-
-    fn push_or_insert_map_place_rlvalue(&mut self, local: mir::Local, rl_value: RlValue<'tcx>) {
-        match self.context.map_place_rlvalue.get_mut(&local) {
-            Some(rvalues) => rvalues.push(rl_value),
-            None => {
-                self.context.map_place_rlvalue.insert(local, vec![rl_value]);
-            }
         }
     }
 
@@ -565,20 +328,20 @@ where
                 );
                 log::trace!("{}", message);
 
-                let (def_id, call_kind) = self.retrieve_call_def_id(func);
+                let (def_id, call_kind) = self.context.retrieve_call_def_id(func, self.analyzer);
 
                 // Update the map_place_rvalue with the destination of the call.
                 match call_kind {
                     CallKind::Clone => {
-                        self.push_or_insert_map_place_rlvalue(
+                        self.context.push_or_insert_map_place_rlvalue(
                             destination.local,
-                            RlValue::TermCallClone(args[0].node.clone()),
+                            RLValue::TermCallClone(args[0].node.clone()),
                         );
                     }
                     CallKind::Function | CallKind::Closure | CallKind::Method => {
-                        self.push_or_insert_map_place_rlvalue(
+                        self.context.push_or_insert_map_place_rlvalue(
                             destination.local,
-                            RlValue::TermCall(def_id),
+                            RLValue::TermCall(def_id),
                         );
                     }
                     CallKind::Unknown => unreachable!(),
@@ -628,7 +391,8 @@ where
             TextMod::Magenta,
         );
         log::trace!("{}", message);
-        self.push_or_insert_map_place_rlvalue(place.local, RlValue::Rvalue(rvalue.clone()));
+        self.context
+            .push_or_insert_map_place_rlvalue(place.local, RLValue::Rvalue(rvalue.clone()));
         self.super_assign(place, rvalue, location);
     }
 
