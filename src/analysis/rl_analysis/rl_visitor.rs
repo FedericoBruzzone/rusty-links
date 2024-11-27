@@ -1,5 +1,6 @@
 use crate::analysis::rl_analysis::rl_context::RLTy;
 use crate::analysis::rl_analysis::rl_context::RLValue;
+use crate::analysis::rl_analysis::rl_weight_resolver::RLWeightResolver;
 use crate::analysis::utils::TextMod;
 
 use rustc_middle::mir;
@@ -25,7 +26,7 @@ where
     G: RLGraph + Default + Clone + Serialize,
 {
     analyzer: &'a Analyzer<'tcx>,
-    context: RLContext<'tcx, 'a, G>,
+    ctx: RLContext<'tcx, 'a, G>,
     rl_graph: G,
 }
 
@@ -41,7 +42,7 @@ where
     pub fn new(analyzer: &'a Analyzer<'tcx>) -> Self {
         Self {
             analyzer,
-            context: RLContext::new(),
+            ctx: RLContext::new(),
             rl_graph: G::default(),
         }
     }
@@ -55,13 +56,13 @@ where
     pub fn visit_local_def_id(&mut self, local_def_id: LocalDefId, body: &'a mir::Body<'tcx>) {
         let _ = self.add_node_if_needed(local_def_id.to_def_id());
 
-        self.context
+        self.ctx
             .stack_local_def_id
             .push((local_def_id.to_def_id(), &body.local_decls));
 
         // It ensures that the local variable is in the map.
         for (local, _) in body.local_decls.iter_enumerated() {
-            self.context.map_place_rlvalue.insert(local, Vec::new());
+            self.ctx.map_place_rlvalue.insert(local, Vec::new());
         }
 
         // It ensures that the local variable is in the map.
@@ -77,7 +78,7 @@ where
                     mir::ClearCrossCrate::Clear => None,
                 },
             );
-            self.context.map_place_ty.insert(local, ty);
+            self.ctx.map_place_ty.insert(local, ty);
         }
 
         let message = self.analyzer.modify_if_needed(
@@ -89,15 +90,15 @@ where
 
         // Clear map_place_rvalue
         for (local, _) in body.local_decls.iter_enumerated() {
-            self.context.map_place_rlvalue.remove(&local);
+            self.ctx.map_place_rlvalue.remove(&local);
         }
 
         // Clear map_place_ty
         for (local, _) in body.local_decls.iter_enumerated() {
-            self.context.map_place_ty.remove(&local);
+            self.ctx.map_place_ty.remove(&local);
         }
 
-        self.context.stack_local_def_id.pop();
+        self.ctx.stack_local_def_id.pop();
     }
 
     /// Update the arguments of the function call.
@@ -112,7 +113,7 @@ where
     fn update_args(
         &self,
         args: &[Spanned<mir::Operand<'tcx>>],
-        call_kind: CallKind,
+        call_kind: &CallKind,
     ) -> Vec<mir::Operand<'tcx>> {
         match call_kind {
             CallKind::Function => args.iter().map(|arg| arg.node.clone()).collect::<Vec<_>>(),
@@ -121,7 +122,7 @@ where
                 // It is safe to assume that the second argument is a tuple by construction.
                 let args = match &args[1].node {
                     mir::Operand::Move(place) => {
-                        let tuple = self.context.map_place_rlvalue[&place.local].last().unwrap();
+                        let tuple = self.ctx.map_place_rlvalue[&place.local].last().unwrap();
                         match tuple {
                             RLValue::Rvalue(Rvalue::Aggregate(aggregate_kind, index_vec)) => {
                                 match **aggregate_kind {
@@ -165,20 +166,16 @@ where
     /// The edge is weighted by the arguments of the function call.
     /// The `to_def_id` is the def_id of the function that is called.
     /// Abstractly, the `from_def_id` is the def_id of the current visited function.
-    fn add_edge(&mut self, to_def_id: DefId, args: Vec<mir::Operand<'tcx>>) {
+    fn add_edge(&mut self, to_def_id: DefId, arg_weights: Vec<f32>) {
         log::debug!(
             "Adding an edge between the current visited function ({:?}) and the function that is called ({:?}) with the arguments: {:?}",
-            self.context.stack_local_def_id.last().unwrap().0,
+            self.ctx.stack_local_def_id.last().unwrap().0,
             to_def_id,
-            args
+            arg_weights
         );
         let fun_caller =
-            self.context.rl_graph_index_map[&self.context.stack_local_def_id.last().unwrap().0];
+            self.ctx.rl_graph_index_map[&self.ctx.stack_local_def_id.last().unwrap().0];
         let fun_callee = self.add_node_if_needed(to_def_id);
-        let arg_weights = args
-            .iter()
-            .map(|arg| self.resolve_arg_weight(arg))
-            .collect::<Vec<f32>>();
         let edge = RLEdge::create(arg_weights);
         self.rl_graph.rl_add_edge(fun_caller, fun_callee, edge);
     }
@@ -191,17 +188,13 @@ where
     /// the called function.
     fn add_node_if_needed(&mut self, def_id: DefId) -> G::Index {
         if let std::collections::hash_map::Entry::Vacant(entry) =
-            self.context.rl_graph_index_map.entry(def_id)
+            self.ctx.rl_graph_index_map.entry(def_id)
         {
             let node = RLNode::create(def_id);
             let index = self.rl_graph.rl_add_node(node);
             entry.insert(index);
         }
-        self.context.rl_graph_index_map[&def_id]
-    }
-
-    fn resolve_arg_weight(&self, _operand: &mir::Operand<'tcx>) -> f32 {
-        1.0
+        self.ctx.rl_graph_index_map[&def_id]
     }
 }
 
@@ -328,18 +321,18 @@ where
                 );
                 log::trace!("{}", message);
 
-                let (def_id, call_kind) = self.context.retrieve_call_def_id(func, self.analyzer);
+                let (def_id, call_kind) = self.ctx.retrieve_call_def_id(func, self.analyzer);
 
                 // Update the map_place_rvalue with the destination of the call.
                 match call_kind {
                     CallKind::Clone => {
-                        self.context.push_or_insert_map_place_rlvalue(
+                        self.ctx.push_or_insert_map_place_rlvalue(
                             destination.local,
                             RLValue::TermCallClone(args[0].node.clone()),
                         );
                     }
                     CallKind::Function | CallKind::Closure | CallKind::Method => {
-                        self.context.push_or_insert_map_place_rlvalue(
+                        self.ctx.push_or_insert_map_place_rlvalue(
                             destination.local,
                             RLValue::TermCall(def_id),
                         );
@@ -348,8 +341,10 @@ where
                 }
 
                 if call_kind != CallKind::Unknown && call_kind != CallKind::Clone {
-                    let args = self.update_args(args, call_kind);
-                    self.add_edge(def_id, args);
+                    let args = self.update_args(args, &call_kind);
+                    let arg_weights =
+                        RLWeightResolver::new(&self.ctx).resolve_arg_weights(&call_kind, &args);
+                    self.add_edge(def_id, arg_weights);
                 }
 
                 self.visit_place(
@@ -391,7 +386,7 @@ where
             TextMod::Magenta,
         );
         log::trace!("{}", message);
-        self.context
+        self.ctx
             .push_or_insert_map_place_rlvalue(place.local, RLValue::Rvalue(rvalue.clone()));
         self.super_assign(place, rvalue, location);
     }
@@ -438,7 +433,7 @@ where
                     // then the value is not None.
                     // For intance, the first `bb`` can have a `StorageLive` for a local
                     // that is only initialized in the local_decls, but never assigned.
-                    assert!(self.context.map_place_rlvalue.contains_key(&local))
+                    assert!(self.ctx.map_place_rlvalue.contains_key(&local))
                 }
                 mir::visit::NonUseContext::AscribeUserTy(_variance) => {}
                 mir::visit::NonUseContext::VarDebugInfo => {}
