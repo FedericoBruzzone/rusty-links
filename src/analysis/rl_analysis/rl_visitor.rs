@@ -118,6 +118,9 @@ where
         match call_kind {
             CallKind::Function => args.iter().map(|arg| arg.node.clone()).collect::<Vec<_>>(),
             CallKind::Method => args.iter().map(|arg| arg.node.clone()).collect::<Vec<_>>(),
+            CallKind::Const => args.iter().map(|arg| arg.node.clone()).collect::<Vec<_>>(),
+            CallKind::Static => args.iter().map(|arg| arg.node.clone()).collect::<Vec<_>>(),
+            CallKind::StaticMut => args.iter().map(|arg| arg.node.clone()).collect::<Vec<_>>(),
             CallKind::Closure => {
                 // It is safe to assume that the second argument is a tuple by construction.
                 let args = match &args[1].node {
@@ -337,6 +340,24 @@ where
                             RLValue::TermCall(def_id),
                         );
                     }
+                    CallKind::Const => {
+                        self.ctx.push_or_insert_map_place_rlvalue(
+                            destination.local,
+                            RLValue::TermCallConst(def_id),
+                        );
+                    }
+                    CallKind::Static => {
+                        self.ctx.push_or_insert_map_place_rlvalue(
+                            destination.local,
+                            RLValue::TermCallStatic(def_id),
+                        );
+                    }
+                    CallKind::StaticMut => {
+                        self.ctx.push_or_insert_map_place_rlvalue(
+                            destination.local,
+                            RLValue::TermCallStaticMut(def_id),
+                        );
+                    }
                     CallKind::Unknown => unreachable!(),
                 }
 
@@ -386,6 +407,7 @@ where
             TextMod::Magenta,
         );
         log::trace!("{}", message);
+
         self.ctx
             .push_or_insert_map_place_rlvalue(place.local, RLValue::Rvalue(rvalue.clone()));
         self.super_assign(place, rvalue, location);
@@ -449,17 +471,19 @@ where
         match rvalue {
             mir::Rvalue::Use(operand) => match operand {
                 mir::Operand::Copy(place) => {
-                    message.push_str(format!(" Use: copy operand: {:?}", place).as_str());
+                    message.push_str(format!(" Use(Copy): place: {:?}", place).as_str());
                 }
                 mir::Operand::Move(place) => {
-                    message.push_str(format!(" Use: operand: {:?}", place).as_str());
+                    message.push_str(format!(" Use(Move): place: {:?}", place).as_str());
                 }
                 mir::Operand::Constant(const_operand) => {
-                    message.push_str(format!(" Use: operand: {:?}", const_operand).as_str());
+                    message.push_str(
+                        format!(" Use(Constant): const_operand: {:?}", const_operand).as_str(),
+                    );
                 }
             },
             mir::Rvalue::Repeat(operand, _) => {
-                message.push_str(format!(" Repeat: operand: {:?}", operand).as_str());
+                message.push_str(format!(" Repeat(Operand): {:?}", operand).as_str());
             }
             mir::Rvalue::Ref(region, borrow_kind, place) => {
                 message.push_str(

@@ -3,6 +3,7 @@ use crate::analysis::Analyzer;
 
 use super::rl_graph::RLGraph;
 use super::rl_graph::{RLEdge, RLIndex, RLNode};
+use rustc_const_eval::interpret::GlobalAlloc;
 use rustc_hir::def_id::DefIndex;
 use rustc_index::IndexVec;
 use rustc_middle::mir::{self, Operand, Rvalue};
@@ -14,6 +15,9 @@ use serde::Serialize;
 #[derive(Debug, PartialEq)]
 pub enum CallKind {
     Clone,
+    StaticMut,
+    Const,
+    Static,
     Function,
     Closure,
     Method,
@@ -46,12 +50,26 @@ impl<'tcx, 'a> RLTy<'tcx, 'a> {
 
 #[allow(dead_code)]
 pub enum RLValue<'tcx> {
-    // A MIR rvalue.
+    /// A MIR rvalue.
     Rvalue(mir::Rvalue<'tcx>),
-    // A terminator call with the def_id of the function that is called.
+    /// A terminator call with the def_id of the function that is called.
     TermCall(DefId),
-    // A terminator call with the def_id of the operand that is cloned.
+    /// A terminator call with the def_id of the operand that is cloned.
     TermCallClone(mir::Operand<'tcx>),
+    /// A terminator call with the def_id of the const that is called.
+    ///
+    /// For example, in the following MIR:
+    /// ```rust,ignore
+    /// bb0: {
+    ///     _1 = const TEST_LAMBDA_C() -> [return: bb1, unwind continue];
+    /// }
+    /// ```
+    TermCallConst(DefId),
+    /// A terminator call with the def_id of the static that is called.
+    TermCallStatic(DefId),
+    /// A terminator call with the def_id of the mutable static that is called.
+    /// It means the used of `unsafe` to mutate the static.
+    TermCallStaticMut(DefId),
 }
 pub struct RLContext<'tcx, 'a, G>
 where
@@ -126,6 +144,9 @@ where
     /// Retrieve the def_id of the function that is called.
     /// This function call the `retrieve_fun_def_id` or `retrieve_fun_or_closure_def_id`
     /// which recursively retrieve the def_id of the function.
+    ///
+    /// This function is called always from the `visit_terminator` since the functions
+    /// can be called only in it.
     pub fn retrieve_call_def_id(
         &self,
         func: &mir::Operand<'tcx>,
@@ -135,7 +156,7 @@ where
             mir::Operand::Copy(place) => {
                 let (def_id, call_kind) = self.retrieve_fun_or_method_def_id(place.local, analyzer);
                 log::debug!(
-                    "Retrieving(Copy) the def_id of the function (local: {:?}) that is called",
+                    "Retrieved(Copy) the def_id of the function (local: {:?}) that is called",
                     place.local
                 );
                 (def_id, call_kind)
@@ -143,7 +164,7 @@ where
             mir::Operand::Move(place) => {
                 let (def_id, call_kind) = self.retrieve_fun_or_method_def_id(place.local, analyzer);
                 log::debug!(
-                    "Retrieving(Move) the def_id of the function (local: {:?}) that is called",
+                    "Retrieved(Move) the def_id of the function (local: {:?}) that is called",
                     place.local
                 );
                 (def_id, call_kind)
@@ -151,7 +172,7 @@ where
             mir::Operand::Constant(const_operand) => {
                 let (def_id, call_kind) = self.get_fun_meth_closure_def_id(const_operand, analyzer);
                 log::debug!(
-                    "Retrieving(Constant) the def_id {:?} of the {:?} that is called",
+                    "Retrieved(Constant) the def_id {:?} of the {:?} that is called",
                     def_id,
                     call_kind
                 );
@@ -193,11 +214,14 @@ where
             (def_id, CallKind::Function)
         }
 
-        match &self.map_place_rlvalue[&local].last() {
+        match &self.map_place_rlvalue[&local]
+            .last()
+            .unwrap_or_else(|| unreachable!())
+        {
             // _5 = function
             // _5 = const main::promoted[0]
-            Some(RLValue::Rvalue(Rvalue::Use(Operand::Constant(const_operand)))) => {
-                // It seems to be safa at this point to assume that the constant is a function.
+            RLValue::Rvalue(Rvalue::Use(Operand::Constant(const_operand))) => {
+                // It seems to be safe at this point to assume that the constant is a function call.
                 // A closure (as terminator) can never be in the form:
                 // ```rust, ignore
                 // _5 = move|copy _6
@@ -208,34 +232,62 @@ where
                 // ```
                 // and this case is handled in the `retrieve_fun_meth_closure_def_id` which is called
                 // by `retrieve_call_def_id` in case of a constant (which is exactly this case).
-                match const_operand.const_.ty().kind() {
-                    ty::TyKind::FnDef(def_id, _generic_args) => fun_or_method(*def_id, analyzer),
-                    ty::TyKind::Ref(_region, ty, _mutability) => match ty.kind() {
+                match const_operand.const_ {
+                    mir::Const::Val(const_value, ty) => match ty.kind() {
                         ty::TyKind::FnDef(def_id, _generic_args) => {
                             fun_or_method(*def_id, analyzer)
                         }
-                        _ => unreachable!(),
+                        ty::TyKind::Ref(_region, ty, _mutability) => match ty.kind() {
+                            ty::TyKind::FnDef(def_id, _generic_args) => {
+                                fun_or_method(*def_id, analyzer)
+                            }
+                            ty::TyKind::FnPtr(_, _) => match const_value {
+                                mir::ConstValue::Scalar(mir::interpret::Scalar::Ptr(
+                                    pointer,
+                                    _,
+                                )) => {
+                                    let alloc_id = pointer.provenance.alloc_id();
+                                    if let GlobalAlloc::Static(def_id) =
+                                        analyzer.tcx.global_alloc(alloc_id)
+                                    {
+                                        return (def_id, CallKind::Static);
+                                    }
+                                    unreachable!()
+                                }
+                                _ => unreachable!(),
+                            },
+                            _ => unreachable!(),
+                        },
+                        ty::TyKind::FnPtr(binder, _fn_header) => {
+                            log::error!(
+                                "The local ({:?}) is a function pointer: {:?}",
+                                local,
+                                binder
+                            );
+                            unreachable!()
+                        }
+                        _ => {
+                            log::error!(
+                                "The local ({:?}) is not a function, but a constant: {:?}",
+                                local,
+                                const_operand.const_.ty()
+                            );
+                            unreachable!()
+                        }
                     },
-                    _ => {
-                        log::error!(
-                            "The local ({:?}) is not a function, but a constant: {:?}",
-                            local,
-                            const_operand.const_.ty()
-                        );
-                        unreachable!()
-                    }
+                    _ => unreachable!(),
                 }
             }
             // _5 = copy (*_6)
-            Some(RLValue::Rvalue(Rvalue::Use(Operand::Copy(place)))) => {
+            RLValue::Rvalue(Rvalue::Use(Operand::Copy(place))) => {
                 self.retrieve_fun_or_method_def_id(place.local, analyzer)
             }
             // _5 = move _6
-            Some(RLValue::Rvalue(Rvalue::Use(Operand::Move(place)))) => {
+            RLValue::Rvalue(Rvalue::Use(Operand::Move(place))) => {
                 self.retrieve_fun_or_method_def_id(place.local, analyzer)
             }
             // _5 = &(*10)
-            Some(RLValue::Rvalue(Rvalue::Ref(_region, _borrow_kind, place))) => {
+            RLValue::Rvalue(Rvalue::Ref(_region, _borrow_kind, place)) => {
                 self.retrieve_fun_or_method_def_id(place.local, analyzer)
             }
             // In rust is:
@@ -257,7 +309,7 @@ where
             //     _3 = move _4(move _5) -> [return: bb1, unwind continue];
             // }
             // ```
-            Some(RLValue::Rvalue(Rvalue::Cast(_cast_kind, operand, _ty))) => {
+            RLValue::Rvalue(Rvalue::Cast(_cast_kind, operand, _ty)) => {
                 self.retrieve_call_def_id(operand, analyzer)
             }
             _ => unreachable!(),
@@ -285,72 +337,118 @@ where
         const_operand: &mir::ConstOperand<'tcx>,
         analyzer: &Analyzer,
     ) -> (DefId, CallKind) {
-        match const_operand.const_.ty().kind() {
-            ty::TyKind::FnDef(def_id, generic_args) => {
-                // Check if it is a clone call
-                if !def_id.is_local() {
-                    let krate_name = analyzer.tcx.crate_name(def_id.krate);
-                    if krate_name == rustc_span::Symbol::intern("core") {
-                        let fun_name = analyzer.tcx.def_path_str(*def_id);
-                        if fun_name == "std::clone::Clone::clone" {
-                            return (*def_id, CallKind::Clone);
+        match const_operand.const_ {
+            mir::Const::Val(_, ty) => match ty.kind() {
+                ty::TyKind::FnDef(def_id, generic_args) => {
+                    // Check if it is a clone call
+                    if !def_id.is_local() {
+                        let krate_name = analyzer.tcx.crate_name(def_id.krate);
+                        if krate_name == rustc_span::Symbol::intern("core") {
+                            let fun_name = analyzer.tcx.def_path_str(*def_id);
+                            if fun_name == "std::clone::Clone::clone" {
+                                return (*def_id, CallKind::Clone);
+                            }
                         }
                     }
-                }
 
-                // Check if the def_id is a method
-                if let Some(def_id) = analyzer.tcx.impl_of_method(*def_id) {
-                    return (def_id, CallKind::Method);
-                }
+                    // Check if the def_id is a method
+                    if let Some(def_id) = analyzer.tcx.impl_of_method(*def_id) {
+                        return (def_id, CallKind::Method);
+                    }
 
-                // Interpret the generic_args as a closure
-                let closure_args = generic_args.as_closure().args;
+                    // Interpret the generic_args as a closure
+                    let closure_args = generic_args.as_closure().args;
 
-                if closure_args.len() > 1 {
-                    if let Some(ty) = closure_args[0].as_type() {
-                        if let ty::TyKind::Closure(closure_def_id, _substs) = ty.kind() {
-                            return (*closure_def_id, CallKind::Closure);
+                    if closure_args.len() > 1 {
+                        if let Some(ty) = closure_args[0].as_type() {
+                            if let ty::TyKind::Closure(closure_def_id, _substs) = ty.kind() {
+                                return (*closure_def_id, CallKind::Closure);
+                            }
                         }
                     }
-                }
 
-                // Check if the def_id is a local function
-                if def_id.is_local() {
-                    return (*def_id, CallKind::Function);
-                }
-
-                // Check if the def_id is external
-                if !def_id.is_local() {
-                    // let def_path = self.analyzer.tcx.def_path(*def_id);
-                    let krate_name = analyzer.tcx.crate_name(def_id.krate);
-
-                    // Check if it is in the core crate
-                    if krate_name == rustc_span::Symbol::intern("core") {
+                    // Check if the def_id is a local function
+                    if def_id.is_local() {
                         return (*def_id, CallKind::Function);
                     }
 
-                    // Check if it is in the std crate
-                    if krate_name == rustc_span::Symbol::intern("std") {
-                        return (*def_id, CallKind::Function);
+                    // Check if the def_id is external
+                    if !def_id.is_local() {
+                        // let def_path = self.analyzer.tcx.def_path(*def_id);
+                        let krate_name = analyzer.tcx.crate_name(def_id.krate);
+
+                        // Check if it is in the core crate
+                        if krate_name == rustc_span::Symbol::intern("core") {
+                            return (*def_id, CallKind::Function);
+                        }
+
+                        // Check if it is in the std crate
+                        if krate_name == rustc_span::Symbol::intern("std") {
+                            return (*def_id, CallKind::Function);
+                        }
+
+                        // Check if it is external but specified as dependency in the Cargo.toml
+                        if !RUSTC_DEPENDENCIES.contains(&krate_name.as_str()) {
+                            // From external crates we can inkove only functions
+                            return (*def_id, CallKind::Function);
+                        }
                     }
 
-                    // Check if it is external but specified as dependency in the Cargo.toml
-                    if !RUSTC_DEPENDENCIES.contains(&krate_name.as_str()) {
-                        // From external crates we can inkove only functions
-                        return (*def_id, CallKind::Function);
-                    }
+                    // The def_id should not be handled
+                    (
+                        DefId {
+                            krate: def_id.krate,
+                            index: DefIndex::from_usize(0),
+                        },
+                        CallKind::Unknown,
+                    )
                 }
-
-                // The def_id should not be handled
-                (
-                    DefId {
-                        krate: def_id.krate,
-                        index: DefIndex::from_usize(0),
-                    },
-                    CallKind::Unknown,
-                )
-            }
-            _ => unreachable!(),
+                _ => unreachable!(),
+            },
+            mir::Const::Unevaluated(unevaluated_const, ty) => match ty.kind() {
+                ty::TyKind::FnPtr(_, _) => {
+                    // The static in this case is difficult to replicate in the MIR
+                    // but we convert it.
+                    //
+                    // *NOTE* This is an expected case, since we are not able to replicate.
+                    // For instance, in the following MIR:
+                    // ```rust,ignore
+                    // bb0: {
+                    //     _1 = const  const {alloc11: &fn()}-> [return: bb1, unwind continue];
+                    // }
+                    // ```
+                    if let Some((def_id, call_kind)) =
+                        self.handle_static_with_mutability(unevaluated_const.def, analyzer)
+                    {
+                        return (def_id, call_kind);
+                    }
+                    (unevaluated_const.def, CallKind::Const)
+                }
+                _ => unreachable!(),
+            },
+            mir::Const::Ty(_, _) => unreachable!(),
         }
+    }
+
+    fn handle_static_with_mutability(
+        &self,
+        def_id: DefId,
+        analyzer: &Analyzer,
+    ) -> Option<(DefId, CallKind)> {
+        let is_static = analyzer.tcx.is_static(def_id);
+        if is_static {
+            let mutability = analyzer.tcx.static_mutability(def_id);
+            match mutability {
+                Some(m) => {
+                    if m == ty::Mutability::Mut {
+                        return Some((def_id, CallKind::StaticMut));
+                    }
+                }
+                None => {
+                    return Some((def_id, CallKind::Static));
+                }
+            }
+        }
+        None
     }
 }
