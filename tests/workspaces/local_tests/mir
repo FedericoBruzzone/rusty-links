@@ -36,6 +36,29 @@ HELLO_C::{constant#0}: usize = {
     }
 }
 
+const TEST_LAMBDA_C: fn() = {
+    let mut _0: fn();
+    let mut _1: {closure@src/main.rs:215:29: 215:31};
+
+    bb0: {
+        StorageLive(_1);
+        _1 = {closure@src/main.rs:215:29: 215:31};
+        _0 = move _1 as fn() (PointerCoercion(ClosureFnPointer(Safe), Implicit));
+        StorageDead(_1);
+        return;
+    }
+}
+
+fn TEST_LAMBDA_C::{closure#0}(_1: &{closure@src/main.rs:215:29: 215:31}) -> () {
+    let mut _0: ();
+    scope 1 {
+    }
+
+    bb0: {
+        return;
+    }
+}
+
 fn test_static() -> bool {
     let mut _0: bool;
     let mut _1: bool;
@@ -131,22 +154,18 @@ const test_static2::promoted[0]: &[char; 5] = {
 
 fn main() -> () {
     let mut _0: ();
+    let _1: ();
+    let mut _2: fn();
+    scope 1 {
+        debug t => const TEST_LAMBDA_C;
+    }
 
     bb0: {
+        _2 = const TEST_LAMBDA_C;
+        _1 = move _2() -> [return: bb1, unwind continue];
+    }
+
+    bb1: {
         return;
     }
 }
-digraph {
-    0 [ label="i0: DefId(0:3 ~ local_tests[65b4]::HELLO)"]
-    1 [ label="i1: DefId(0:4 ~ local_tests[65b4]::HELLO::{constant#0})"]
-    2 [ label="i2: DefId(0:5 ~ local_tests[65b4]::HELLO_C)"]
-    3 [ label="i3: DefId(0:6 ~ local_tests[65b4]::HELLO_C::{constant#0})"]
-    4 [ label="i4: DefId(0:7 ~ local_tests[65b4]::test_static)"]
-    5 [ label="i5: DefId(2:2969 ~ core[47af]::cmp::PartialEq::eq)"]
-    6 [ label="i6: DefId(0:8 ~ local_tests[65b4]::test_static2)"]
-    7 [ label="i7: DefId(0:9 ~ local_tests[65b4]::main)"]
-    4 -> 5 [ label="2.00"]
-    4 -> 5 [ label="2.00"]
-    6 -> 5 [ label="2.00"]
-}
-

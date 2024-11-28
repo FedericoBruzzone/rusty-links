@@ -212,9 +212,9 @@ const HELLO_C: [char; 5] = ['H', 'e', 'l', 'l', 'o'];
 // static TEST_LAMBDA: fn() = || {
 //     let _ = 10;
 // };
-// const TEST_LAMBDA_C: fn() = || {
-//     let _ = 10;
-// };
+const TEST_LAMBDA_C: fn() = || {
+    let _ = 10;
+};
 
 fn test_static() -> bool {
     // HELLO == "Hello"
@@ -224,7 +224,10 @@ fn test_static2() -> bool {
     HELLO == HELLO_C
 }
 
-fn main() {}
+fn main() {
+    let t = TEST_LAMBDA_C;
+    t();
+}
 // fn test_lambda() {
 //     // let tmp = TEST_LAMBDA;
 //     // tmp();

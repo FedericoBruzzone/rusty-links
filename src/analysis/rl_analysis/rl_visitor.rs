@@ -324,7 +324,7 @@ where
                 );
                 log::trace!("{}", message);
 
-                let (def_id, call_kind) = self.ctx.retrieve_call_def_id(func, self.analyzer);
+                let (def_id, call_kind) = self.ctx.resolve_call_def_id(func, self.analyzer);
 
                 // Update the map_place_rvalue with the destination of the call.
                 match call_kind {

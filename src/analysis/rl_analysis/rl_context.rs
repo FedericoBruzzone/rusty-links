@@ -156,13 +156,14 @@ where
     ///
     /// The difference between the two functions is that the `retrieve_def_id`
     /// is called when the operand is a place (local variable) so we need to go deeper
-    /// to retrieve the def_id of the function.
+    /// to retrieve the def_id of the function, it operates in O(n) where n is the depth of the
+    /// recursion.
     /// The `get_def_id` is called when the operand is a constant, so we can directly
-    /// retrieve the def_id of the function.
+    /// retrieve the def_id of the function, it operates in O(1).
     ///
     /// *NOTE*: This function is called always from the `visit_terminator` since the functions
     /// can be called only in it.
-    pub fn retrieve_call_def_id(
+    pub fn resolve_call_def_id(
         &self,
         func: &mir::Operand<'tcx>,
         analyzer: &Analyzer,
@@ -196,23 +197,27 @@ where
         }
     }
 
-    /// Recursively retrieve the def_id of the called function.
-    /// This function assumes that the `local` is one of the following:
+    /// Recursively retrieve the `def_id` of the called function.
+    /// This function assumes that the `local` is one of the following, otherwise it panics:
     /// - A function
     /// - A method
-    /// - A closure
     /// - A static function
     /// - A const function
-    ///   It panics if it is not.
+    ///
+    /// Note that the `closure` is handled in the `get_def_id` function, not in this one.
+    ///
+    /// This function operates in O(n) where n is the depth of the recursion.
     pub fn retrieve_def_id(&self, local: mir::Local, analyzer: &Analyzer) -> (DefId, CallKind) {
         match &self.map_place_rlvalue[&local]
             .last()
             .unwrap_or_else(|| unreachable!())
         {
-            // _5 = function
-            // _5 = const main::promoted[0]
+            // _5 = const T
+            // T := main::promoted[0] // this could be function, method or a const
+            //   | {alloc1: &[char; 5]}
             RLValue::Rvalue(Rvalue::Use(Operand::Constant(const_operand))) => {
-                // It seems to be safe at this point to assume that the constant is a function call.
+                // BASE CASE
+                // It safe at this point to assume that the constant is a function call.
                 // A closure (as terminator) can never be in the form:
                 // ```rust, ignore
                 // _5 = move|copy _6
@@ -221,14 +226,14 @@ where
                 // ```rust, ignore
                 // _5 = {closure@src/main.rs:18:18: 18:20} ...
                 // ```
-                // and this case is handled in the `retrieve_fun_meth_closure_def_id` which is called
-                // by `retrieve_call_def_id` in case of a constant (which is exactly this case).
+                // and this case is handled in the `get_def_id` which is called
+                // by `retrieve_call_def_id` in case of a constant.
                 match const_operand.const_ {
                     mir::Const::Val(const_value, ty) => match ty.kind() {
                         ty::TyKind::FnDef(def_id, _generic_args) => {
                             self.handle_fun_or_method(*def_id, analyzer)
                         }
-                        ty::TyKind::Ref(_region, ty, _mutability) => match ty.kind() {
+                        ty::TyKind::Ref(_, ty, _) => match ty.kind() {
                             ty::TyKind::FnDef(def_id, _generic_args) => {
                                 self.handle_fun_or_method(*def_id, analyzer)
                             }
@@ -251,14 +256,6 @@ where
                             },
                             _ => unreachable!(),
                         },
-                        ty::TyKind::FnPtr(binder, _fn_header) => {
-                            log::error!(
-                                "The local ({:?}) is a function pointer: {:?}",
-                                local,
-                                binder
-                            );
-                            unreachable!()
-                        }
                         ty::TyKind::RawPtr(ty, mutability) => match ty.kind() {
                             // This could something like:
                             // ```rust, ignore
@@ -279,6 +276,14 @@ where
                             },
                             _ => unreachable!(),
                         },
+                        ty::TyKind::FnPtr(binder, _fn_header) => {
+                            log::error!(
+                                "The local ({:?}) is a function pointer: {:?}",
+                                local,
+                                binder
+                            );
+                            unreachable!()
+                        }
                         _ => unreachable!(),
                     },
                     _ => unreachable!(),
@@ -316,19 +321,21 @@ where
             // }
             // ```
             RLValue::Rvalue(Rvalue::Cast(_, operand, _)) => {
-                self.retrieve_call_def_id(operand, analyzer)
+                self.resolve_call_def_id(operand, analyzer)
             }
             _ => unreachable!(),
         }
     }
 
-    /// Get the def_id of the function or closure.
+    /// Get the def_id of the function that is called.
+    /// This function assumes that the `const_operand` is one of the following, otherwise it panics:
+    /// - A function
+    /// - A method
+    /// - A static function
+    /// - A const function
+    /// - A closure
     ///
-    /// This function assumes that the const_operand is a function.
-    /// In case it is a method, it tries to interpret it as a method.
-    /// In case it is a closure, it tries to interpret it as a closure.
-    ///
-    /// For instance, in the following MIR:
+    /// The closure are always in the form:
     /// ```rust,ignore
     /// bb5: {
     ///     _15 = {closure@src/main.rs:18:18: 18:20};
@@ -337,7 +344,8 @@ where
     ///     _16 = <{closure@src/main.rs:18:18: 18:20} as std::ops::Fn<()>>::call(move _17, move _18) -> [return: bb6, unwind continue];
     /// }
     /// ```
-    /// In this case the first arguments it `move _17` that is a reference to the closure.
+    ///
+    /// It operates in O(1).
     fn get_def_id(
         &self,
         const_operand: &mir::ConstOperand<'tcx>,
