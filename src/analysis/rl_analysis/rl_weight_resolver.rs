@@ -54,7 +54,7 @@ where
         self.resolve_args(args)
     }
     fn resolve_method_weights(&self, args: &'a [mir::Operand<'tcx>]) -> Vec<f32> {
-        let self_weight = self.resolve_self_weight(&args[0]);
+        let self_weight = self.resolve_self(&args[0]);
         let mut arg_weights = self.resolve_args(&args[1..]);
         arg_weights.insert(0, self_weight);
         arg_weights
@@ -76,7 +76,7 @@ where
         arg_weights
     }
 
-    fn resolve_self_weight(&self, _zelf: &mir::Operand<'tcx>) -> f32 {
+    fn resolve_self(&self, _zelf: &mir::Operand<'tcx>) -> f32 {
         // TODO: implement
         1.0
     }

@@ -36,52 +36,6 @@ HELLO_C::{constant#0}: usize = {
     }
 }
 
-static mut TEST_LAMBDA: fn() = {
-    let mut _0: fn();
-    let mut _1: {closure@src/main.rs:212:32: 212:34};
-
-    bb0: {
-        StorageLive(_1);
-        _1 = {closure@src/main.rs:212:32: 212:34};
-        _0 = move _1 as fn() (PointerCoercion(ClosureFnPointer(Safe), Implicit));
-        StorageDead(_1);
-        return;
-    }
-}
-
-fn TEST_LAMBDA::{closure#0}(_1: &{closure@src/main.rs:212:32: 212:34}) -> () {
-    let mut _0: ();
-    scope 1 {
-    }
-
-    bb0: {
-        return;
-    }
-}
-
-const TEST_LAMBDA_C: fn() = {
-    let mut _0: fn();
-    let mut _1: {closure@src/main.rs:215:29: 215:31};
-
-    bb0: {
-        StorageLive(_1);
-        _1 = {closure@src/main.rs:215:29: 215:31};
-        _0 = move _1 as fn() (PointerCoercion(ClosureFnPointer(Safe), Implicit));
-        StorageDead(_1);
-        return;
-    }
-}
-
-fn TEST_LAMBDA_C::{closure#0}(_1: &{closure@src/main.rs:215:29: 215:31}) -> () {
-    let mut _0: ();
-    scope 1 {
-    }
-
-    bb0: {
-        return;
-    }
-}
-
 fn test_static() -> bool {
     let mut _0: bool;
     let mut _1: bool;
@@ -175,108 +129,8 @@ const test_static2::promoted[0]: &[char; 5] = {
     }
 }
 
-fn test_lambda() -> () {
-    let mut _0: ();
-    let _1: ();
-    let mut _2: fn();
-    let mut _3: *mut fn();
-    let mut _4: *const ();
-    let mut _5: usize;
-    let mut _6: usize;
-    let mut _7: usize;
-    let mut _8: usize;
-    let mut _9: bool;
-
-    bb0: {
-        _3 = const {alloc11: *mut fn()};
-        _4 = copy _3 as *const () (PtrToPtr);
-        _5 = copy _4 as usize (Transmute);
-        _6 = AlignOf(fn());
-        _7 = Sub(copy _6, const 1_usize);
-        _8 = BitAnd(copy _5, copy _7);
-        _9 = Eq(copy _8, const 0_usize);
-        assert(copy _9, "misaligned pointer dereference: address must be a multiple of {} but is {}", copy _6, copy _5) -> [success: bb2, unwind unreachable];
-    }
-
-    bb1: {
-        return;
-    }
-
-    bb2: {
-        _2 = copy (*_3);
-        _1 = move _2() -> [return: bb1, unwind continue];
-    }
-}
-
-alloc11 (static: TEST_LAMBDA, size: 8, align: 8) {
-    ╾───────alloc12───────╼                         │ ╾──────╼
-}
-
-alloc12 (fn: <{closure@src/main.rs:212:32: 212:34} as std::ops::FnOnce<()>>::call_once - shim)
-
 fn main() -> () {
     let mut _0: ();
-    let _1: fn() -> i32;
-    let _2: i32;
-    scope 1 {
-        debug bar => _1;
-    }
-
-    bb0: {
-        _1 = main::foo as fn() -> i32 (PointerCoercion(ReifyFnPointer, Implicit));
-        _2 = copy _1() -> [return: bb1, unwind continue];
-    }
-
-    bb1: {
-        return;
-    }
-}
-
-fn main::foo() -> i32 {
-    let mut _0: i32;
-
-    bb0: {
-        _0 = const 1_i32;
-        return;
-    }
-}
-
-fn hello() -> () {
-    let mut _0: ();
-    let _1: T;
-    let _2: ();
-    scope 1 {
-        debug x => _1;
-    }
-
-    bb0: {
-        _1 = T { _value: const 10_i32 };
-        _2 = const TEST(move _1) -> [return: bb1, unwind continue];
-    }
-
-    bb1: {
-        return;
-    }
-}
-
-const TEST: fn(T) = {
-    let mut _0: fn(T);
-    let mut _1: {closure@src/main.rs:253:21: 253:24};
-
-    bb0: {
-        StorageLive(_1);
-        _1 = {closure@src/main.rs:253:21: 253:24};
-        _0 = move _1 as fn(T) (PointerCoercion(ClosureFnPointer(Safe), Implicit));
-        StorageDead(_1);
-        return;
-    }
-}
-
-fn TEST::{closure#0}(_1: &{closure@src/main.rs:253:21: 253:24}, _2: T) -> () {
-    debug t => _2;
-    let mut _0: ();
-    scope 1 {
-    }
 
     bb0: {
         return;
@@ -287,24 +141,12 @@ digraph {
     1 [ label="i1: DefId(0:4 ~ local_tests[65b4]::HELLO::{constant#0})"]
     2 [ label="i2: DefId(0:5 ~ local_tests[65b4]::HELLO_C)"]
     3 [ label="i3: DefId(0:6 ~ local_tests[65b4]::HELLO_C::{constant#0})"]
-    4 [ label="i4: DefId(0:7 ~ local_tests[65b4]::TEST_LAMBDA)"]
-    5 [ label="i5: DefId(0:8 ~ local_tests[65b4]::TEST_LAMBDA::{closure#0})"]
-    6 [ label="i6: DefId(0:9 ~ local_tests[65b4]::TEST_LAMBDA_C)"]
-    7 [ label="i7: DefId(0:10 ~ local_tests[65b4]::TEST_LAMBDA_C::{closure#0})"]
-    8 [ label="i8: DefId(0:11 ~ local_tests[65b4]::test_static)"]
-    9 [ label="i9: DefId(2:2969 ~ core[47af]::cmp::PartialEq::eq)"]
-    10 [ label="i10: DefId(0:12 ~ local_tests[65b4]::test_static2)"]
-    11 [ label="i11: DefId(0:13 ~ local_tests[65b4]::test_lambda)"]
-    12 [ label="i12: DefId(0:14 ~ local_tests[65b4]::main)"]
-    13 [ label="i13: DefId(0:15 ~ local_tests[65b4]::main::foo)"]
-    14 [ label="i14: DefId(0:18 ~ local_tests[65b4]::hello)"]
-    15 [ label="i15: DefId(0:19 ~ local_tests[65b4]::TEST)"]
-    16 [ label="i16: DefId(0:20 ~ local_tests[65b4]::TEST::{closure#0})"]
-    8 -> 9 [ label="2.00"]
-    8 -> 9 [ label="2.00"]
-    10 -> 9 [ label="2.00"]
-    11 -> 4 [ label="-0.00"]
-    12 -> 13 [ label="-0.00"]
-    14 -> 15 [ label="1.00"]
+    4 [ label="i4: DefId(0:7 ~ local_tests[65b4]::test_static)"]
+    5 [ label="i5: DefId(2:2969 ~ core[47af]::cmp::PartialEq::eq)"]
+    6 [ label="i6: DefId(0:8 ~ local_tests[65b4]::test_static2)"]
+    7 [ label="i7: DefId(0:9 ~ local_tests[65b4]::main)"]
+    4 -> 5 [ label="2.00"]
+    4 -> 5 [ label="2.00"]
+    6 -> 5 [ label="2.00"]
 }
 

@@ -209,12 +209,12 @@
 static HELLO: [char; 5] = ['H', 'e', 'l', 'l', 'o'];
 const HELLO_C: [char; 5] = ['H', 'e', 'l', 'l', 'o'];
 
-static mut TEST_LAMBDA: fn() = || {
-    let _ = 10;
-};
-const TEST_LAMBDA_C: fn() = || {
-    let _ = 10;
-};
+// static TEST_LAMBDA: fn() = || {
+//     let _ = 10;
+// };
+// const TEST_LAMBDA_C: fn() = || {
+//     let _ = 10;
+// };
 
 fn test_static() -> bool {
     // HELLO == "Hello"
@@ -224,32 +224,15 @@ fn test_static2() -> bool {
     HELLO == HELLO_C
 }
 
-fn test_lambda() {
-    // let tmp = TEST_LAMBDA_C;
-    // tmp();
+fn main() {}
+// fn test_lambda() {
+//     // let tmp = TEST_LAMBDA;
+//     // tmp();
 
-    // let tmp = TEST_LAMBDA_C;
-    // tmp();
+//     // let tmp = TEST_LAMBDA_C;
+//     // tmp();
 
-    // TEST_LAMBDA_C(); // OK
-    // TEST_LAMBDA(); // OK
-    unsafe { TEST_LAMBDA(); }
-}
-
-fn main() {
-    fn foo() -> i32 { 1 }
-    let bar: fn() -> i32 = foo;
-    bar();
-}
-
-struct T {
-    _value: i32,
-}
-fn hello() {
-    let x = T { _value: 10 };
-    TEST(x);
-}
-
-const TEST: fn(T) = |t| {
-    let _ = t;
-};
+//     // TEST_LAMBDA_C(); // OK
+//     // TEST_LAMBDA(); // OK
+//     // unsafe { TEST_LAMBDA(); } // OK
+// }

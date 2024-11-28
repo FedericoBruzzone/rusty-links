@@ -24,6 +24,15 @@ pub enum CallKind {
     Unknown,
 }
 
+impl From<ty::Mutability> for CallKind {
+    fn from(mutability: ty::Mutability) -> Self {
+        match mutability {
+            ty::Mutability::Mut => CallKind::StaticMut,
+            ty::Mutability::Not => CallKind::Static,
+        }
+    }
+}
+
 /// RlRy is a struct that represents the type of a place (local variable).
 /// It is used to weight the edges of the graph.
 /// At the beginning, all the places are assigned to its RlTy, since
@@ -142,10 +151,16 @@ where
     }
 
     /// Retrieve the def_id of the function that is called.
-    /// This function call the `retrieve_fun_def_id` or `retrieve_fun_or_closure_def_id`
+    /// This function call the `retrieve_def_id` or `get_def_id`
     /// which recursively retrieve the def_id of the function.
     ///
-    /// This function is called always from the `visit_terminator` since the functions
+    /// The difference between the two functions is that the `retrieve_def_id`
+    /// is called when the operand is a place (local variable) so we need to go deeper
+    /// to retrieve the def_id of the function.
+    /// The `get_def_id` is called when the operand is a constant, so we can directly
+    /// retrieve the def_id of the function.
+    ///
+    /// *NOTE*: This function is called always from the `visit_terminator` since the functions
     /// can be called only in it.
     pub fn retrieve_call_def_id(
         &self,
@@ -154,7 +169,7 @@ where
     ) -> (DefId, CallKind) {
         match func {
             mir::Operand::Copy(place) => {
-                let (def_id, call_kind) = self.retrieve_fun_or_method_def_id(place.local, analyzer);
+                let (def_id, call_kind) = self.retrieve_def_id(place.local, analyzer);
                 log::debug!(
                     "Retrieved(Copy) the def_id of the function (local: {:?}) that is called",
                     place.local
@@ -162,7 +177,7 @@ where
                 (def_id, call_kind)
             }
             mir::Operand::Move(place) => {
-                let (def_id, call_kind) = self.retrieve_fun_or_method_def_id(place.local, analyzer);
+                let (def_id, call_kind) = self.retrieve_def_id(place.local, analyzer);
                 log::debug!(
                     "Retrieved(Move) the def_id of the function (local: {:?}) that is called",
                     place.local
@@ -170,7 +185,7 @@ where
                 (def_id, call_kind)
             }
             mir::Operand::Constant(const_operand) => {
-                let (def_id, call_kind) = self.get_fun_meth_closure_def_id(const_operand, analyzer);
+                let (def_id, call_kind) = self.get_def_id(const_operand, analyzer);
                 log::debug!(
                     "Retrieved(Constant) the def_id {:?} of the {:?} that is called",
                     def_id,
@@ -181,57 +196,15 @@ where
         }
     }
 
-    /// Recursively retrieve the def_id of the function.
-    /// This function assumes that the `local` is a function, so
-    /// it panics if it is not.
-    ///
-    /// For instance, in the following MIR:
-    /// ```rust,ignore
-    /// bb4: {
-    ///     // ...
-    ///     _11 = test_own;
-    ///    // ...
-    ///    _13 = copy _11;
-    ///    // ...
-    ///    _15 = &_1;
-    ///    _14 = <T as std::clone::Clone>::clone(move _15) -> [return: bb5, unwind continue];
-    /// }
-    /// ```
-    /// The function `test_own` is assigned to the local `_11`.
-    /// The local `_13` is a copy of the local `_11`.
-    /// The local `_15` is a reference to the local `_1`.
-    /// The function `test_own` is then called with the local `_15`.
-    /// At this point, we need to retrieve the def_id of the function `test_own`.
-    pub fn retrieve_fun_or_method_def_id(
-        &self,
-        local: mir::Local,
-        analyzer: &Analyzer,
-    ) -> (DefId, CallKind) {
-        fn handle_fun_or_method(def_id: DefId, analyzer: &Analyzer) -> (DefId, CallKind) {
-            if let Some(def_id) = analyzer.tcx.impl_of_method(def_id) {
-                return (def_id, CallKind::Method);
-            }
-            (def_id, CallKind::Function)
-        }
-
-        fn handle_static(
-            alloc_id: mir::interpret::AllocId,
-            mutability: Option<&ty::Mutability>,
-            analyzer: &Analyzer,
-        ) -> (DefId, CallKind) {
-            let call_kind = match mutability {
-                Some(s) => match s {
-                    ty::Mutability::Not => CallKind::Static,
-                    ty::Mutability::Mut => CallKind::StaticMut,
-                },
-                None => CallKind::Static,
-            };
-            if let GlobalAlloc::Static(def_id) = analyzer.tcx.global_alloc(alloc_id) {
-                return (def_id, call_kind);
-            }
-            unreachable!()
-        }
-
+    /// Recursively retrieve the def_id of the called function.
+    /// This function assumes that the `local` is one of the following:
+    /// - A function
+    /// - A method
+    /// - A closure
+    /// - A static function
+    /// - A const function
+    ///   It panics if it is not.
+    pub fn retrieve_def_id(&self, local: mir::Local, analyzer: &Analyzer) -> (DefId, CallKind) {
         match &self.map_place_rlvalue[&local]
             .last()
             .unwrap_or_else(|| unreachable!())
@@ -253,11 +226,11 @@ where
                 match const_operand.const_ {
                     mir::Const::Val(const_value, ty) => match ty.kind() {
                         ty::TyKind::FnDef(def_id, _generic_args) => {
-                            handle_fun_or_method(*def_id, analyzer)
+                            self.handle_fun_or_method(*def_id, analyzer)
                         }
                         ty::TyKind::Ref(_region, ty, _mutability) => match ty.kind() {
                             ty::TyKind::FnDef(def_id, _generic_args) => {
-                                handle_fun_or_method(*def_id, analyzer)
+                                self.handle_fun_or_method(*def_id, analyzer)
                             }
                             // This is something like:
                             // ```rust, ignore
@@ -269,7 +242,11 @@ where
                                 mir::ConstValue::Scalar(mir::interpret::Scalar::Ptr(
                                     pointer,
                                     _,
-                                )) => handle_static(pointer.provenance.alloc_id(), None, analyzer),
+                                )) => self.handle_static_with_alloc_id(
+                                    pointer.provenance.alloc_id(),
+                                    None,
+                                    analyzer,
+                                ),
                                 _ => unreachable!(),
                             },
                             _ => unreachable!(),
@@ -293,7 +270,7 @@ where
                                 mir::ConstValue::Scalar(mir::interpret::Scalar::Ptr(
                                     pointer,
                                     _,
-                                )) => handle_static(
+                                )) => self.handle_static_with_alloc_id(
                                     pointer.provenance.alloc_id(),
                                     Some(mutability),
                                     analyzer,
@@ -309,15 +286,15 @@ where
             }
             // _5 = copy (*_6)
             RLValue::Rvalue(Rvalue::Use(Operand::Copy(place))) => {
-                self.retrieve_fun_or_method_def_id(place.local, analyzer)
+                self.retrieve_def_id(place.local, analyzer)
             }
             // _5 = move _6
             RLValue::Rvalue(Rvalue::Use(Operand::Move(place))) => {
-                self.retrieve_fun_or_method_def_id(place.local, analyzer)
+                self.retrieve_def_id(place.local, analyzer)
             }
             // _5 = &(*10)
             RLValue::Rvalue(Rvalue::Ref(_region, _borrow_kind, place)) => {
-                self.retrieve_fun_or_method_def_id(place.local, analyzer)
+                self.retrieve_def_id(place.local, analyzer)
             }
             // In rust is:
             //
@@ -338,7 +315,7 @@ where
             //     _3 = move _4(move _5) -> [return: bb1, unwind continue];
             // }
             // ```
-            RLValue::Rvalue(Rvalue::Cast(_cast_kind, operand, _ty)) => {
+            RLValue::Rvalue(Rvalue::Cast(_, operand, _)) => {
                 self.retrieve_call_def_id(operand, analyzer)
             }
             _ => unreachable!(),
@@ -361,7 +338,7 @@ where
     /// }
     /// ```
     /// In this case the first arguments it `move _17` that is a reference to the closure.
-    fn get_fun_meth_closure_def_id(
+    fn get_def_id(
         &self,
         const_operand: &mir::ConstOperand<'tcx>,
         analyzer: &Analyzer,
@@ -447,7 +424,7 @@ where
                     // }
                     // ```
                     if let Some((def_id, call_kind)) =
-                        self.handle_static_with_mutability(unevaluated_const.def, analyzer)
+                        self.handle_static_with_def_id(unevaluated_const.def, analyzer)
                     {
                         return (def_id, call_kind);
                     }
@@ -459,7 +436,7 @@ where
         }
     }
 
-    fn handle_static_with_mutability(
+    fn handle_static_with_def_id(
         &self,
         def_id: DefId,
         analyzer: &Analyzer,
@@ -467,17 +444,30 @@ where
         let is_static = analyzer.tcx.is_static(def_id);
         if is_static {
             let mutability = analyzer.tcx.static_mutability(def_id);
-            match mutability {
-                Some(m) => {
-                    if m == ty::Mutability::Mut {
-                        return Some((def_id, CallKind::StaticMut));
-                    }
-                }
-                None => {
-                    return Some((def_id, CallKind::Static));
-                }
-            }
+            return Some((def_id, CallKind::from(mutability?)));
         }
         None
+    }
+
+    fn handle_static_with_alloc_id(
+        &self,
+        alloc_id: mir::interpret::AllocId,
+        mutability: Option<&ty::Mutability>,
+        analyzer: &Analyzer,
+    ) -> (DefId, CallKind) {
+        if let GlobalAlloc::Static(def_id) = analyzer.tcx.global_alloc(alloc_id) {
+            return (
+                def_id,
+                CallKind::from(*mutability.unwrap_or(&ty::Mutability::Not)),
+            );
+        }
+        unreachable!()
+    }
+
+    fn handle_fun_or_method(&self, def_id: DefId, analyzer: &Analyzer) -> (DefId, CallKind) {
+        if let Some(def_id) = analyzer.tcx.impl_of_method(def_id) {
+            return (def_id, CallKind::Method);
+        }
+        (def_id, CallKind::Function)
     }
 }
