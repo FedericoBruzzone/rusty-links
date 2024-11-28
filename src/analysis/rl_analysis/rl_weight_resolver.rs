@@ -92,7 +92,6 @@ where
     }
 
     fn resolve_place(&self, _place: &mir::Place<'tcx>) -> f32 {
-        // TODO: implement
         1.0
     }
 

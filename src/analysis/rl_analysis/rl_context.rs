@@ -207,11 +207,29 @@ where
         local: mir::Local,
         analyzer: &Analyzer,
     ) -> (DefId, CallKind) {
-        fn fun_or_method(def_id: DefId, analyzer: &Analyzer) -> (DefId, CallKind) {
+        fn handle_fun_or_method(def_id: DefId, analyzer: &Analyzer) -> (DefId, CallKind) {
             if let Some(def_id) = analyzer.tcx.impl_of_method(def_id) {
                 return (def_id, CallKind::Method);
             }
             (def_id, CallKind::Function)
+        }
+
+        fn handle_static(
+            alloc_id: mir::interpret::AllocId,
+            mutability: Option<&ty::Mutability>,
+            analyzer: &Analyzer,
+        ) -> (DefId, CallKind) {
+            let call_kind = match mutability {
+                Some(s) => match s {
+                    ty::Mutability::Not => CallKind::Static,
+                    ty::Mutability::Mut => CallKind::StaticMut,
+                },
+                None => CallKind::Static,
+            };
+            if let GlobalAlloc::Static(def_id) = analyzer.tcx.global_alloc(alloc_id) {
+                return (def_id, call_kind);
+            }
+            unreachable!()
         }
 
         match &self.map_place_rlvalue[&local]
@@ -235,25 +253,23 @@ where
                 match const_operand.const_ {
                     mir::Const::Val(const_value, ty) => match ty.kind() {
                         ty::TyKind::FnDef(def_id, _generic_args) => {
-                            fun_or_method(*def_id, analyzer)
+                            handle_fun_or_method(*def_id, analyzer)
                         }
                         ty::TyKind::Ref(_region, ty, _mutability) => match ty.kind() {
                             ty::TyKind::FnDef(def_id, _generic_args) => {
-                                fun_or_method(*def_id, analyzer)
+                                handle_fun_or_method(*def_id, analyzer)
                             }
+                            // This is something like:
+                            // ```rust, ignore
+                            // static TEST: fn() = || {};
+                            // TEST();
+                            // ```
+                            // The static in the compiler are allocated directly in the memory.
                             ty::TyKind::FnPtr(_, _) => match const_value {
                                 mir::ConstValue::Scalar(mir::interpret::Scalar::Ptr(
                                     pointer,
                                     _,
-                                )) => {
-                                    let alloc_id = pointer.provenance.alloc_id();
-                                    if let GlobalAlloc::Static(def_id) =
-                                        analyzer.tcx.global_alloc(alloc_id)
-                                    {
-                                        return (def_id, CallKind::Static);
-                                    }
-                                    unreachable!()
-                                }
+                                )) => handle_static(pointer.provenance.alloc_id(), None, analyzer),
                                 _ => unreachable!(),
                             },
                             _ => unreachable!(),
@@ -266,14 +282,27 @@ where
                             );
                             unreachable!()
                         }
-                        _ => {
-                            log::error!(
-                                "The local ({:?}) is not a function, but a constant: {:?}",
-                                local,
-                                const_operand.const_.ty()
-                            );
-                            unreachable!()
-                        }
+                        ty::TyKind::RawPtr(ty, mutability) => match ty.kind() {
+                            // This could something like:
+                            // ```rust, ignore
+                            // static mut TEST: fn() = || {};
+                            // unsafe { TEST(); }
+                            // ```
+                            // The static in the compiler are allocated directly in the memory.
+                            ty::TyKind::FnPtr(_, _) => match const_value {
+                                mir::ConstValue::Scalar(mir::interpret::Scalar::Ptr(
+                                    pointer,
+                                    _,
+                                )) => handle_static(
+                                    pointer.provenance.alloc_id(),
+                                    Some(mutability),
+                                    analyzer,
+                                ),
+                                _ => unreachable!(),
+                            },
+                            _ => unreachable!(),
+                        },
+                        _ => unreachable!(),
                     },
                     _ => unreachable!(),
                 }

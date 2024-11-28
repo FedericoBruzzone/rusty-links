@@ -209,7 +209,7 @@
 static HELLO: [char; 5] = ['H', 'e', 'l', 'l', 'o'];
 const HELLO_C: [char; 5] = ['H', 'e', 'l', 'l', 'o'];
 
-static TEST_LAMBDA: fn() = || {
+static mut TEST_LAMBDA: fn() = || {
     let _ = 10;
 };
 const TEST_LAMBDA_C: fn() = || {
@@ -232,7 +232,8 @@ fn test_lambda() {
     // tmp();
 
     // TEST_LAMBDA_C(); // OK
-    TEST_LAMBDA();
+    // TEST_LAMBDA(); // OK
+    unsafe { TEST_LAMBDA(); }
 }
 
 fn main() {
