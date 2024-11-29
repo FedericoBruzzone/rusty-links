@@ -9,7 +9,6 @@ use rustc_index::IndexVec;
 use rustc_middle::mir::{self, Operand, Rvalue};
 use rustc_middle::ty;
 use rustc_span::def_id::DefId;
-use rustc_span::sym::assert;
 use serde::de::DeserializeOwned;
 use serde::Serialize;
 
@@ -230,63 +229,9 @@ where
                 // and this case is handled in the `get_def_id` which is called
                 // by `retrieve_call_def_id` in case of a constant.
                 match const_operand.const_ {
-                    mir::Const::Val(const_value, ty) => match ty.kind() {
-                        ty::TyKind::FnDef(def_id, _generic_args) => {
-                            self.handle_fun_or_method(*def_id, analyzer)
-                        }
-                        ty::TyKind::Ref(_, ty, _) => match ty.kind() {
-                            ty::TyKind::FnDef(def_id, _generic_args) => {
-                                self.handle_fun_or_method(*def_id, analyzer)
-                            }
-                            // This is something like:
-                            // ```rust, ignore
-                            // static TEST: fn() = || {};
-                            // TEST();
-                            // ```
-                            // The static in the compiler are allocated directly in the memory.
-                            ty::TyKind::FnPtr(_, _) => match const_value {
-                                mir::ConstValue::Scalar(mir::interpret::Scalar::Ptr(
-                                    pointer,
-                                    _,
-                                )) => self.handle_static_with_alloc_id(
-                                    pointer.provenance.alloc_id(),
-                                    None,
-                                    analyzer,
-                                ),
-                                _ => unreachable!(),
-                            },
-                            _ => unreachable!(),
-                        },
-                        ty::TyKind::RawPtr(ty, mutability) => match ty.kind() {
-                            // This could something like:
-                            // ```rust, ignore
-                            // static mut TEST: fn() = || {};
-                            // unsafe { TEST(); }
-                            // ```
-                            // The static in the compiler are allocated directly in the memory.
-                            ty::TyKind::FnPtr(_, _) => match const_value {
-                                mir::ConstValue::Scalar(mir::interpret::Scalar::Ptr(
-                                    pointer,
-                                    _,
-                                )) => self.handle_static_with_alloc_id(
-                                    pointer.provenance.alloc_id(),
-                                    Some(mutability),
-                                    analyzer,
-                                ),
-                                _ => unreachable!(),
-                            },
-                            _ => unreachable!(),
-                        },
-                        ty::TyKind::FnPtr(binder, _fn_header) => {
-                            log::error!(
-                                "The local ({:?}) is a function pointer: {:?}",
-                                local,
-                                binder
-                            );
-                            unreachable!()
-                        }
-                        _ => unreachable!(),
-                    },
+                    mir::Const::Val(const_value, ty) => {
+                        return self.retrieve_const_val(const_value, ty, analyzer);
+                    }
                     _ => unreachable!(),
                 }
             }
@@ -438,7 +383,7 @@ where
                     // }
                     // ```
                     if let Some((def_id, call_kind)) =
-                        self.handle_static_with_def_id(unevaluated_const.def, analyzer)
+                        self.def_id_as_static(unevaluated_const.def, analyzer)
                     {
                         return (def_id, call_kind);
                     }
@@ -450,11 +395,74 @@ where
         }
     }
 
-    fn handle_static_with_def_id(
+    fn retrieve_const_val(
         &self,
-        def_id: DefId,
+        const_value: mir::ConstValue,
+        ty: ty::Ty<'tcx>,
         analyzer: &Analyzer,
-    ) -> Option<(DefId, CallKind)> {
+    ) -> (DefId, CallKind) {
+        return match ty.kind() {
+            ty::TyKind::FnDef(def_id, _generic_args) => {
+                self.def_id_as_fun_or_method(*def_id, analyzer)
+            }
+            ty::TyKind::Ref(_, ty, mutability) => match ty.kind() {
+                ty::TyKind::FnDef(def_id, _generic_args) => {
+                    self.def_id_as_fun_or_method(*def_id, analyzer)
+                }
+                // This is something like:
+                // ```rust, ignore
+                // static TEST: fn() = || {};
+                // TEST();
+                // ```
+                // The static in the compiler are allocated directly in the memory.
+                ty::TyKind::FnPtr(_, _) => {
+                    if let mir::ConstValue::Scalar(mir::interpret::Scalar::Ptr(pointer, _)) =
+                        const_value
+                    {
+                        return self.alloc_id_as_static(
+                            pointer.provenance.alloc_id(),
+                            mutability,
+                            analyzer,
+                        );
+                    }
+                    unreachable!()
+                }
+                _ => unreachable!(),
+            },
+            ty::TyKind::RawPtr(ty, mutability) => match ty.kind() {
+                // This could something like:
+                // ```rust, ignore
+                // static mut TEST: fn() = || {};
+                // unsafe { TEST(); }
+                // ```
+                // The static in the compiler are allocated directly in the memory.
+                ty::TyKind::FnPtr(_, _) => {
+                    if let mir::ConstValue::Scalar(mir::interpret::Scalar::Ptr(pointer, _)) =
+                        const_value
+                    {
+                        return self.alloc_id_as_static(
+                            pointer.provenance.alloc_id(),
+                            mutability,
+                            analyzer,
+                        );
+                    }
+                    unreachable!()
+                }
+                _ => unreachable!(),
+            },
+            ty::TyKind::FnPtr(binder, _fn_header) => {
+                log::error!(
+                    "The const_value ({:?}) is a function pointer: {:?}",
+                    const_value,
+                    binder
+                );
+                unreachable!()
+            }
+            _ => unreachable!(),
+        };
+    }
+
+    fn def_id_as_static(&self, def_id: DefId, analyzer: &Analyzer) -> Option<(DefId, CallKind)> {
         if analyzer.tcx.is_static(def_id) {
             let mutability = analyzer.tcx.static_mutability(def_id);
             assert!(matches!(
@@ -466,10 +474,10 @@ where
         None
     }
 
-    fn handle_static_with_alloc_id(
+    fn alloc_id_as_static(
         &self,
         alloc_id: mir::interpret::AllocId,
-        mutability: Option<&ty::Mutability>,
+        mutability: &ty::Mutability,
         analyzer: &Analyzer,
     ) -> (DefId, CallKind) {
         if let GlobalAlloc::Static(def_id) = analyzer.tcx.global_alloc(alloc_id) {
@@ -477,15 +485,12 @@ where
                 analyzer.tcx.def_kind(def_id),
                 rustc_hir::def::DefKind::Static { .. }
             ));
-            return (
-                def_id,
-                CallKind::from(*mutability.unwrap_or(&ty::Mutability::Not)),
-            );
+            return (def_id, CallKind::from(*mutability));
         }
         unreachable!()
     }
 
-    fn handle_fun_or_method(&self, def_id: DefId, analyzer: &Analyzer) -> (DefId, CallKind) {
+    fn def_id_as_fun_or_method(&self, def_id: DefId, analyzer: &Analyzer) -> (DefId, CallKind) {
         if let Some(def_id) = analyzer.tcx.impl_of_method(def_id) {
             assert!(matches!(
                 analyzer.tcx.def_kind(def_id),
