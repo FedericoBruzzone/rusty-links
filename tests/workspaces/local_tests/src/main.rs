@@ -209,9 +209,13 @@
 static HELLO: [char; 5] = ['H', 'e', 'l', 'l', 'o'];
 const HELLO_C: [char; 5] = ['H', 'e', 'l', 'l', 'o'];
 
-// static TEST_LAMBDA: fn() = || {
-//     let _ = 10;
-// };
+
+static mut TEST_LAMBDA_MUT: fn() = || {
+    let _ = 10;
+};
+static TEST_LAMBDA: fn() = || {
+    let _ = 10;
+};
 const TEST_LAMBDA_C: fn() = || {
     let _ = 10;
 };
@@ -225,17 +229,21 @@ fn test_static2() -> bool {
 }
 
 fn main() {
-    let t = TEST_LAMBDA_C;
+    // let t = TEST_LAMBDA;
+    // t();
+    
+    // let t = &TEST_LAMBDA;
+    // t();
+    
+    // let t = unsafe { TEST_LAMBDA_MUT };
+    // t();
+    
+    // let t = unsafe { &TEST_LAMBDA_MUT };
+    // t();
+    
+    // let t = TEST_LAMBDA_C;
+    // t();
+
+    let t = &TEST_LAMBDA_C;
     t();
 }
-// fn test_lambda() {
-//     // let tmp = TEST_LAMBDA;
-//     // tmp();
-
-//     // let tmp = TEST_LAMBDA_C;
-//     // tmp();
-
-//     // TEST_LAMBDA_C(); // OK
-//     // TEST_LAMBDA(); // OK
-//     // unsafe { TEST_LAMBDA(); } // OK
-// }

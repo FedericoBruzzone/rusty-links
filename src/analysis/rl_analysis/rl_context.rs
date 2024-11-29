@@ -177,7 +177,7 @@ where
                 );
                 (def_id, call_kind)
             }
-            mir::Operand::Move(place) => {
+            Operand::Move(place) => {
                 let (def_id, call_kind) = self.retrieve_def_id(place.local, analyzer);
                 log::debug!(
                     "Retrieved(Move) the def_id of the function (local: {:?}) that is called",
@@ -185,7 +185,7 @@ where
                 );
                 (def_id, call_kind)
             }
-            mir::Operand::Constant(const_operand) => {
+            Operand::Constant(const_operand) => {
                 let (def_id, call_kind) = self.get_def_id(const_operand, analyzer);
                 log::debug!(
                     "Retrieved(Constant) the def_id {:?} of the {:?} that is called",
@@ -208,6 +208,10 @@ where
     ///
     /// This function operates in O(n) where n is the depth of the recursion.
     pub fn retrieve_def_id(&self, local: mir::Local, analyzer: &Analyzer) -> (DefId, CallKind) {
+        log::debug!(
+            "Retrieving the def_id of the function (local: {:?}) that is called",
+            local
+        );
         match &self.map_place_rlvalue[&local]
             .last()
             .unwrap_or_else(|| unreachable!())
@@ -230,8 +234,25 @@ where
                 // by `retrieve_call_def_id` in case of a constant.
                 match const_operand.const_ {
                     mir::Const::Val(const_value, ty) => {
-                        return self.retrieve_const_val(const_value, ty, analyzer);
+                        self.retrieve_const_val(const_value, ty, analyzer)
                     }
+                    mir::Const::Unevaluated(unevaluated_const, ty) => match ty.kind() {
+                        ty::TyKind::FnPtr(_, _) => {
+                            // The static in this case is difficult to replicate in the MIR
+                            // but we convert it.
+                            //
+                            // *NOTE* This is an expected case, since we are not able to replicate.
+                            // For instance, in the following MIR:
+                            // ```rust,ignore
+                            // bb0: {
+                            //     _1 = const  const {alloc11: &fn()}-> [return: bb1, unwind continue];
+                            // }
+                            // ```
+                            self.def_id_as_static_or_const(unevaluated_const.def, analyzer)
+                        }
+                        ty::TyKind::Ref(_, _, _) => panic!("FCB"),
+                        _ => unreachable!(),
+                    },
                     _ => unreachable!(),
                 }
             }
@@ -244,7 +265,7 @@ where
                 self.retrieve_def_id(place.local, analyzer)
             }
             // _5 = &(*10)
-            RLValue::Rvalue(Rvalue::Ref(_region, _borrow_kind, place)) => {
+            RLValue::Rvalue(Rvalue::Ref(_, _, place)) => {
                 self.retrieve_def_id(place.local, analyzer)
             }
             // In rust is:
@@ -382,12 +403,7 @@ where
                     //     _1 = const  const {alloc11: &fn()}-> [return: bb1, unwind continue];
                     // }
                     // ```
-                    if let Some((def_id, call_kind)) =
-                        self.def_id_as_static(unevaluated_const.def, analyzer)
-                    {
-                        return (def_id, call_kind);
-                    }
-                    (unevaluated_const.def, CallKind::Const)
+                    self.def_id_as_static_or_const(unevaluated_const.def, analyzer)
                 }
                 _ => unreachable!(),
             },
@@ -401,7 +417,7 @@ where
         ty: ty::Ty<'tcx>,
         analyzer: &Analyzer,
     ) -> (DefId, CallKind) {
-        return match ty.kind() {
+        match ty.kind() {
             ty::TyKind::FnDef(def_id, _generic_args) => {
                 self.def_id_as_fun_or_method(*def_id, analyzer)
             }
@@ -459,19 +475,20 @@ where
                 unreachable!()
             }
             _ => unreachable!(),
-        };
+        }
     }
 
-    fn def_id_as_static(&self, def_id: DefId, analyzer: &Analyzer) -> Option<(DefId, CallKind)> {
+    fn def_id_as_static_or_const(&self, def_id: DefId, analyzer: &Analyzer) -> (DefId, CallKind) {
         if analyzer.tcx.is_static(def_id) {
             let mutability = analyzer.tcx.static_mutability(def_id);
             assert!(matches!(
                 analyzer.tcx.def_kind(def_id),
                 rustc_hir::def::DefKind::Static { .. }
             ));
-            return Some((def_id, CallKind::from(mutability?)));
+            return (def_id, CallKind::from(mutability.unwrap()));
         }
-        None
+        assert!(analyzer.tcx.def_kind(def_id) == rustc_hir::def::DefKind::Const);
+        (def_id, CallKind::Const)
     }
 
     fn alloc_id_as_static(

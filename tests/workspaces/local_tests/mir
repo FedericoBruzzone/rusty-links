@@ -36,20 +36,66 @@ HELLO_C::{constant#0}: usize = {
     }
 }
 
-const TEST_LAMBDA_C: fn() = {
+static mut TEST_LAMBDA_MUT: fn() = {
     let mut _0: fn();
-    let mut _1: {closure@src/main.rs:215:29: 215:31};
+    let mut _1: {closure@src/main.rs:213:36: 213:38};
 
     bb0: {
         StorageLive(_1);
-        _1 = {closure@src/main.rs:215:29: 215:31};
+        _1 = {closure@src/main.rs:213:36: 213:38};
         _0 = move _1 as fn() (PointerCoercion(ClosureFnPointer(Safe), Implicit));
         StorageDead(_1);
         return;
     }
 }
 
-fn TEST_LAMBDA_C::{closure#0}(_1: &{closure@src/main.rs:215:29: 215:31}) -> () {
+fn TEST_LAMBDA_MUT::{closure#0}(_1: &{closure@src/main.rs:213:36: 213:38}) -> () {
+    let mut _0: ();
+    scope 1 {
+    }
+
+    bb0: {
+        return;
+    }
+}
+
+static TEST_LAMBDA: fn() = {
+    let mut _0: fn();
+    let mut _1: {closure@src/main.rs:216:28: 216:30};
+
+    bb0: {
+        StorageLive(_1);
+        _1 = {closure@src/main.rs:216:28: 216:30};
+        _0 = move _1 as fn() (PointerCoercion(ClosureFnPointer(Safe), Implicit));
+        StorageDead(_1);
+        return;
+    }
+}
+
+fn TEST_LAMBDA::{closure#0}(_1: &{closure@src/main.rs:216:28: 216:30}) -> () {
+    let mut _0: ();
+    scope 1 {
+    }
+
+    bb0: {
+        return;
+    }
+}
+
+const TEST_LAMBDA_C: fn() = {
+    let mut _0: fn();
+    let mut _1: {closure@src/main.rs:219:29: 219:31};
+
+    bb0: {
+        StorageLive(_1);
+        _1 = {closure@src/main.rs:219:29: 219:31};
+        _0 = move _1 as fn() (PointerCoercion(ClosureFnPointer(Safe), Implicit));
+        StorageDead(_1);
+        return;
+    }
+}
+
+fn TEST_LAMBDA_C::{closure#0}(_1: &{closure@src/main.rs:219:29: 219:31}) -> () {
     let mut _0: ();
     scope 1 {
     }
@@ -154,18 +200,53 @@ const test_static2::promoted[0]: &[char; 5] = {
 
 fn main() -> () {
     let mut _0: ();
-    let _1: ();
-    let mut _2: fn();
+    let _1: &fn();
+    let _2: ();
+    let mut _3: fn();
     scope 1 {
-        debug t => const TEST_LAMBDA_C;
+        debug t => _1;
     }
 
     bb0: {
-        _2 = const TEST_LAMBDA_C;
-        _1 = move _2() -> [return: bb1, unwind continue];
+        _1 = const main::promoted[0];
+        _3 = copy (*_1);
+        _2 = move _3() -> [return: bb1, unwind continue];
     }
 
     bb1: {
         return;
     }
 }
+
+const main::promoted[0]: &fn() = {
+    let mut _0: &fn();
+    let mut _1: fn();
+
+    bb0: {
+        _1 = const TEST_LAMBDA_C;
+        _0 = &_1;
+        return;
+    }
+}
+digraph {
+    0 [ label="i0: DefId(0:3 ~ local_tests[65b4]::HELLO)"]
+    1 [ label="i1: DefId(0:4 ~ local_tests[65b4]::HELLO::{constant#0})"]
+    2 [ label="i2: DefId(0:5 ~ local_tests[65b4]::HELLO_C)"]
+    3 [ label="i3: DefId(0:6 ~ local_tests[65b4]::HELLO_C::{constant#0})"]
+    4 [ label="i4: DefId(0:7 ~ local_tests[65b4]::TEST_LAMBDA_MUT)"]
+    5 [ label="i5: DefId(0:8 ~ local_tests[65b4]::TEST_LAMBDA_MUT::{closure#0})"]
+    6 [ label="i6: DefId(0:9 ~ local_tests[65b4]::TEST_LAMBDA)"]
+    7 [ label="i7: DefId(0:10 ~ local_tests[65b4]::TEST_LAMBDA::{closure#0})"]
+    8 [ label="i8: DefId(0:11 ~ local_tests[65b4]::TEST_LAMBDA_C)"]
+    9 [ label="i9: DefId(0:12 ~ local_tests[65b4]::TEST_LAMBDA_C::{closure#0})"]
+    10 [ label="i10: DefId(0:13 ~ local_tests[65b4]::test_static)"]
+    11 [ label="i11: DefId(2:2969 ~ core[47af]::cmp::PartialEq::eq)"]
+    12 [ label="i12: DefId(0:14 ~ local_tests[65b4]::test_static2)"]
+    13 [ label="i13: DefId(0:15 ~ local_tests[65b4]::main)"]
+    14 [ label="i14: DefId(0:0 ~ local_tests[65b4])"]
+    10 -> 11 [ label="2.00"]
+    10 -> 11 [ label="2.00"]
+    12 -> 11 [ label="2.00"]
+    13 -> 14 [ label="-0.00"]
+}
+
