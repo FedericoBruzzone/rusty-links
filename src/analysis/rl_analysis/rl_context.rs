@@ -9,6 +9,7 @@ use rustc_index::IndexVec;
 use rustc_middle::mir::{self, Operand, Rvalue};
 use rustc_middle::ty;
 use rustc_span::def_id::DefId;
+use rustc_span::sym::assert;
 use serde::de::DeserializeOwned;
 use serde::Serialize;
 
@@ -376,6 +377,10 @@ where
                     if closure_args.len() > 1 {
                         if let Some(ty) = closure_args[0].as_type() {
                             if let ty::TyKind::Closure(closure_def_id, _substs) = ty.kind() {
+                                assert!(
+                                    analyzer.tcx.def_kind(*closure_def_id)
+                                        == rustc_hir::def::DefKind::Closure
+                                );
                                 return (*closure_def_id, CallKind::Closure);
                             }
                         }
@@ -383,6 +388,7 @@ where
 
                     // Check if the def_id is a local function
                     if def_id.is_local() {
+                        assert!(analyzer.tcx.def_kind(def_id) == rustc_hir::def::DefKind::Fn);
                         return (*def_id, CallKind::Function);
                     }
 
@@ -449,9 +455,12 @@ where
         def_id: DefId,
         analyzer: &Analyzer,
     ) -> Option<(DefId, CallKind)> {
-        let is_static = analyzer.tcx.is_static(def_id);
-        if is_static {
+        if analyzer.tcx.is_static(def_id) {
             let mutability = analyzer.tcx.static_mutability(def_id);
+            assert!(matches!(
+                analyzer.tcx.def_kind(def_id),
+                rustc_hir::def::DefKind::Static { .. }
+            ));
             return Some((def_id, CallKind::from(mutability?)));
         }
         None
@@ -464,6 +473,10 @@ where
         analyzer: &Analyzer,
     ) -> (DefId, CallKind) {
         if let GlobalAlloc::Static(def_id) = analyzer.tcx.global_alloc(alloc_id) {
+            assert!(matches!(
+                analyzer.tcx.def_kind(def_id),
+                rustc_hir::def::DefKind::Static { .. }
+            ));
             return (
                 def_id,
                 CallKind::from(*mutability.unwrap_or(&ty::Mutability::Not)),
@@ -474,8 +487,13 @@ where
 
     fn handle_fun_or_method(&self, def_id: DefId, analyzer: &Analyzer) -> (DefId, CallKind) {
         if let Some(def_id) = analyzer.tcx.impl_of_method(def_id) {
+            assert!(matches!(
+                analyzer.tcx.def_kind(def_id),
+                rustc_hir::def::DefKind::Impl { .. }
+            ));
             return (def_id, CallKind::Method);
         }
+        assert!(analyzer.tcx.def_kind(def_id) == rustc_hir::def::DefKind::Fn);
         (def_id, CallKind::Function)
     }
 }
