@@ -56,9 +56,7 @@ where
     pub fn visit_local_def_id(&mut self, local_def_id: LocalDefId, body: &'a mir::Body<'tcx>) {
         let _ = self.add_node_if_needed(local_def_id.to_def_id());
 
-        self.ctx
-            .stack_local_def_id
-            .push((local_def_id.to_def_id(), &body.local_decls));
+        self.ctx.stack_local_def_id.push(local_def_id.to_def_id());
 
         // It ensures that the local variable is in the map.
         for (local, _) in body.local_decls.iter_enumerated() {
@@ -172,12 +170,12 @@ where
     fn add_edge(&mut self, to_def_id: DefId, arg_weights: Vec<f32>) {
         log::debug!(
             "Adding an edge between the current visited function ({:?}) and the function that is called ({:?}) with the arguments: {:?}",
-            self.ctx.stack_local_def_id.last().unwrap().0,
+            self.ctx.stack_local_def_id.last().unwrap(),
             to_def_id,
             arg_weights
         );
         let fun_caller =
-            self.ctx.rl_graph_index_map[&self.ctx.stack_local_def_id.last().unwrap().0];
+            self.ctx.rl_graph_index_map[&self.ctx.stack_local_def_id.last().unwrap()];
         let fun_callee = self.add_node_if_needed(to_def_id);
         let edge = RLEdge::create(arg_weights);
         self.rl_graph.rl_add_edge(fun_caller, fun_callee, edge);

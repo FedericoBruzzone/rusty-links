@@ -5,7 +5,6 @@ use super::rl_graph::RLGraph;
 use super::rl_graph::{RLEdge, RLIndex, RLNode};
 use rustc_const_eval::interpret::GlobalAlloc;
 use rustc_hir::def_id::DefIndex;
-use rustc_index::IndexVec;
 use rustc_middle::mir::{self, Operand, Rvalue};
 use rustc_middle::ty;
 use rustc_span::def_id::DefId;
@@ -87,7 +86,9 @@ where
     // Stack of local_def_id and local_decls.
     // It should enought to keep track the current function and its local variables,
     // becuase the MIR does not allow nested functions.
-    pub stack_local_def_id: Vec<(DefId, &'a IndexVec<mir::Local, mir::LocalDecl<'tcx>>)>,
+    // 
+    // 
+    pub stack_local_def_id: Vec<DefId>, // , &'a IndexVec<mir::Local, mir::LocalDecl<'tcx>>
 
     // Abstract domain/state.
     // Map of places and their rvalues, this refers to the local_def_id we are visiting.
