@@ -96,6 +96,9 @@ where
             self.ctx.map_place_ty.remove(&local);
         }
 
+        // Clear map_parent_bb
+        self.ctx.map_parent_bb = rustc_hash::FxHashMap::default();
+
         self.ctx.stack_local_def_id.pop();
     }
 

@@ -94,7 +94,7 @@ where
     pub stack_basic_block: Vec<mir::BasicBlock>,
 
     // Map from basic block to the basic blocks that are the parent of the current basic block.
-    // Vector size is not 1 only when a SwitchInt terminator is encoutered.
+    // Vector size is not 1 only when a SwitchInt terminator was encoutered.
     pub map_parent_bb: rustc_hash::FxHashMap<mir::BasicBlock, Vec<mir::BasicBlock>>,
 
     // Abstract state.
