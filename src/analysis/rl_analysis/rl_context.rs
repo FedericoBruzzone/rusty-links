@@ -93,6 +93,10 @@ where
     // because the MIR does not allow nested functions.
     pub stack_basic_block: Vec<mir::BasicBlock>,
 
+    // Map from basic block to the basic blocks that are the parent of the current basic block.
+    // Vector size is not 1 only when a SwitchInt terminator is encoutered.
+    pub map_parent_bb: rustc_hash::FxHashMap<mir::BasicBlock, Vec<mir::BasicBlock>>,
+
     // Abstract state.
     // Map of places and their rvalues, this refers to the local_def_id we are visiting.
     // It is used to keep track of the rvalue of a local variable.
@@ -134,6 +138,7 @@ where
         Self {
             stack_local_def_id: Vec::new(),
             stack_basic_block: Vec::new(),
+            map_parent_bb: rustc_hash::FxHashMap::default(),
             map_place_rlvalue: rustc_hash::FxHashMap::default(),
             _map_bb_to_map_place_rlvalue: rustc_hash::FxHashMap::default(),
             map_place_ty: rustc_hash::FxHashMap::default(),
@@ -150,8 +155,17 @@ where
         + Serialize
         + DeserializeOwned,
 {
-    pub fn replace_map_place_rlvalue(&mut self, local: mir::Local, rl_value: RLValue<'tcx>) {
+    pub fn insert_map_place_rlvalue(&mut self, local: mir::Local, rl_value: RLValue<'tcx>) {
         self.map_place_rlvalue.insert(local, Some(rl_value));
+    }
+
+    pub fn add_current_bb_as_parent_of(&mut self, bb: mir::BasicBlock) {
+        if let Some(parents) = self.map_parent_bb.get_mut(&bb) {
+            parents.push(*self.stack_basic_block.last().unwrap());
+        } else {
+            self.map_parent_bb
+                .insert(bb, vec![*self.stack_basic_block.last().unwrap()]);
+        }
     }
 
     /// Retrieve the def_id of the function that is called.

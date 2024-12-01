@@ -303,6 +303,7 @@ where
             source_info: _,
             kind,
         } = terminator;
+
         match kind {
             // We can analyze the `call_source` field of the `Call` variant
             // to know if it a `Normal` call.
@@ -330,31 +331,29 @@ where
                 // Update the map_place_rvalue with the destination of the call.
                 match call_kind {
                     CallKind::Clone => {
-                        self.ctx.replace_map_place_rlvalue(
+                        self.ctx.insert_map_place_rlvalue(
                             destination.local,
                             RLValue::TermCallClone(args[0].node.clone()),
                         );
                     }
                     CallKind::Function | CallKind::Closure | CallKind::Method => {
-                        self.ctx.replace_map_place_rlvalue(
-                            destination.local,
-                            RLValue::TermCall(def_id),
-                        );
+                        self.ctx
+                            .insert_map_place_rlvalue(destination.local, RLValue::TermCall(def_id));
                     }
                     CallKind::Const => {
-                        self.ctx.replace_map_place_rlvalue(
+                        self.ctx.insert_map_place_rlvalue(
                             destination.local,
                             RLValue::TermCallConst(def_id),
                         );
                     }
                     CallKind::Static => {
-                        self.ctx.replace_map_place_rlvalue(
+                        self.ctx.insert_map_place_rlvalue(
                             destination.local,
                             RLValue::TermCallStatic(def_id),
                         );
                     }
                     CallKind::StaticMut => {
-                        self.ctx.replace_map_place_rlvalue(
+                        self.ctx.insert_map_place_rlvalue(
                             destination.local,
                             RLValue::TermCallStaticMut(def_id),
                         );
@@ -369,13 +368,47 @@ where
                     self.add_edge(def_id, arg_weights);
                 }
 
+                // TODO: It assume that the target is alyays Some
+                self.ctx.add_current_bb_as_parent_of((*target).unwrap());
+
                 self.visit_place(
                     destination,
                     mir::visit::PlaceContext::MutatingUse(mir::visit::MutatingUseContext::Call),
                     location,
                 );
             }
-            _ => self.super_terminator(terminator, location),
+            mir::TerminatorKind::SwitchInt { discr: _, targets } => {
+                let message = self.analyzer.modify_if_needed(
+                    format!("Visiting the switch_int: {:?}, {:?}", targets, location).as_str(),
+                    TextMod::Magenta,
+                );
+                log::trace!("{}", message);
+
+                for target in targets.all_targets() {
+                    self.ctx.add_current_bb_as_parent_of(*target);
+                }
+            }
+            mir::TerminatorKind::Goto { target } => self.ctx.add_current_bb_as_parent_of(*target),
+            mir::TerminatorKind::Drop {
+                place: _, target, ..
+            } => self.ctx.add_current_bb_as_parent_of(*target),
+            mir::TerminatorKind::Assert {
+                cond: _,
+                expected: _,
+                msg: _,
+                target,
+                ..
+            } => self.ctx.add_current_bb_as_parent_of(*target),
+            mir::TerminatorKind::FalseEdge { real_target, .. } => {
+                self.ctx.add_current_bb_as_parent_of(*real_target)
+            }
+            mir::TerminatorKind::FalseUnwind { real_target, .. } => {
+                self.ctx.add_current_bb_as_parent_of(*real_target)
+            }
+            mir::TerminatorKind::Yield { .. } => todo!(),
+            mir::TerminatorKind::InlineAsm { .. } => todo!(),
+            mir::TerminatorKind::TailCall { .. } => todo!(),
+            _ => {}
         }
     }
 
@@ -410,7 +443,7 @@ where
         log::trace!("{}", message);
 
         self.ctx
-            .replace_map_place_rlvalue(place.local, RLValue::Rvalue(rvalue.clone()));
+            .insert_map_place_rlvalue(place.local, RLValue::Rvalue(rvalue.clone()));
         self.super_assign(place, rvalue, location);
     }
 
