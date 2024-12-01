@@ -84,23 +84,29 @@ where
     G: RLGraph + Default + Clone + Serialize,
 {
     // Stack of local_def_id and local_decls.
-    // It should enought to keep track the current function and its local variables,
+    // It should enough to keep track the current function and its local variables,
     // becuase the MIR does not allow nested functions.
-    // 
-    // 
     pub stack_local_def_id: Vec<DefId>, // , &'a IndexVec<mir::Local, mir::LocalDecl<'tcx>>
 
-    // Abstract domain/state.
+    // Stack of basic blocks.
+    // It should be enough to keep track the current function and its basic blocks,
+    // because the MIR does not allow nested functions.
+    pub stack_basic_block: Vec<mir::BasicBlock>,
+
+    // Abstract state.
     // Map of places and their rvalues, this refers to the local_def_id we are visiting.
     // It is used to keep track of the rvalue of a local variable.
-    // It is a vector because a local variable can be assigned multiple times.
-    // During the visit the last rvalue is always the last assigned value.
+    // The value is an option because the rvalues are not initialized at the beginning.
     //
     // Basically, it is used to retrieve the function that is called
     // when it is aliased to a local variable.
     //
     // See `visit_local` function.
-    pub map_place_rlvalue: rustc_hash::FxHashMap<mir::Local, Vec<RLValue<'tcx>>>,
+    pub map_place_rlvalue: rustc_hash::FxHashMap<mir::Local, Option<RLValue<'tcx>>>,
+
+    // Abstract domain.
+    pub _map_bb_to_map_place_rlvalue:
+        rustc_hash::FxHashMap<mir::BasicBlock, rustc_hash::FxHashMap<mir::Local, RLValue<'tcx>>>,
 
     // Abstract domain/state.
     // Map of places and their types, this refers to the local_def_id we are visiting.
@@ -127,7 +133,9 @@ where
     pub fn new() -> Self {
         Self {
             stack_local_def_id: Vec::new(),
+            stack_basic_block: Vec::new(),
             map_place_rlvalue: rustc_hash::FxHashMap::default(),
+            _map_bb_to_map_place_rlvalue: rustc_hash::FxHashMap::default(),
             map_place_ty: rustc_hash::FxHashMap::default(),
             rl_graph_index_map: rustc_hash::FxHashMap::default(),
         }
@@ -142,13 +150,8 @@ where
         + Serialize
         + DeserializeOwned,
 {
-    pub fn push_or_insert_map_place_rlvalue(&mut self, local: mir::Local, rl_value: RLValue<'tcx>) {
-        match self.map_place_rlvalue.get_mut(&local) {
-            Some(rvalues) => rvalues.push(rl_value),
-            None => {
-                self.map_place_rlvalue.insert(local, vec![rl_value]);
-            }
-        }
+    pub fn replace_map_place_rlvalue(&mut self, local: mir::Local, rl_value: RLValue<'tcx>) {
+        self.map_place_rlvalue.insert(local, Some(rl_value));
     }
 
     /// Retrieve the def_id of the function that is called.
@@ -213,8 +216,8 @@ where
             "Retrieving the def_id of the function (local: {:?}) that is called",
             local
         );
-        match &self.map_place_rlvalue[&local]
-            .last()
+        match self.map_place_rlvalue[&local]
+            .as_ref()
             .unwrap_or_else(|| unreachable!())
         {
             // _5 = const T

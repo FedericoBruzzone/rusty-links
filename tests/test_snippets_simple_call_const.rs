@@ -21,7 +21,7 @@ mod test_snippets_simple_call_const {
         let snippet = &std::fs::read_to_string(format!("{FOLDER}/call_const_alias.rs")).unwrap();
         let (output, _) = run_with_cargo_bin_and_snippet(snippet, &["--print-rl-graph"])?;
 
-        assert!(output.contains("0 -> 1")); // main -> TEST 
+        assert!(output.contains("0 -> 1")); // main -> TEST
 
         Ok(())
     }

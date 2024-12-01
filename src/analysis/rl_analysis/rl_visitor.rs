@@ -60,7 +60,7 @@ where
 
         // It ensures that the local variable is in the map.
         for (local, _) in body.local_decls.iter_enumerated() {
-            self.ctx.map_place_rlvalue.insert(local, Vec::new());
+            self.ctx.map_place_rlvalue.insert(local, None);
         }
 
         // It ensures that the local variable is in the map.
@@ -123,7 +123,9 @@ where
                 // It is safe to assume that the second argument is a tuple by construction.
                 let args = match &args[1].node {
                     mir::Operand::Move(place) => {
-                        let tuple = self.ctx.map_place_rlvalue[&place.local].last().unwrap();
+                        let tuple = self.ctx.map_place_rlvalue[&place.local]
+                            .as_ref()
+                            .unwrap_or_else(|| unreachable!());
                         match tuple {
                             RLValue::Rvalue(Rvalue::Aggregate(aggregate_kind, index_vec)) => {
                                 match **aggregate_kind {
@@ -174,8 +176,7 @@ where
             to_def_id,
             arg_weights
         );
-        let fun_caller =
-            self.ctx.rl_graph_index_map[&self.ctx.stack_local_def_id.last().unwrap()];
+        let fun_caller = self.ctx.rl_graph_index_map[self.ctx.stack_local_def_id.last().unwrap()];
         let fun_callee = self.add_node_if_needed(to_def_id);
         let edge = RLEdge::create(arg_weights);
         self.rl_graph.rl_add_edge(fun_caller, fun_callee, edge);
@@ -221,12 +222,14 @@ where
 
     // Call by the super_body
     fn visit_basic_block_data(&mut self, block: mir::BasicBlock, data: &mir::BasicBlockData<'tcx>) {
+        self.ctx.stack_basic_block.push(block);
         let message = self.analyzer.modify_if_needed(
             format!("Visiting the basic_block_data: {:?}, {:?}", block, data).as_str(),
             TextMod::Yellow,
         );
         log::trace!("{}", message);
         self.super_basic_block_data(block, data);
+        self.ctx.stack_basic_block.pop();
     }
 
     // TODO: implement
@@ -327,31 +330,31 @@ where
                 // Update the map_place_rvalue with the destination of the call.
                 match call_kind {
                     CallKind::Clone => {
-                        self.ctx.push_or_insert_map_place_rlvalue(
+                        self.ctx.replace_map_place_rlvalue(
                             destination.local,
                             RLValue::TermCallClone(args[0].node.clone()),
                         );
                     }
                     CallKind::Function | CallKind::Closure | CallKind::Method => {
-                        self.ctx.push_or_insert_map_place_rlvalue(
+                        self.ctx.replace_map_place_rlvalue(
                             destination.local,
                             RLValue::TermCall(def_id),
                         );
                     }
                     CallKind::Const => {
-                        self.ctx.push_or_insert_map_place_rlvalue(
+                        self.ctx.replace_map_place_rlvalue(
                             destination.local,
                             RLValue::TermCallConst(def_id),
                         );
                     }
                     CallKind::Static => {
-                        self.ctx.push_or_insert_map_place_rlvalue(
+                        self.ctx.replace_map_place_rlvalue(
                             destination.local,
                             RLValue::TermCallStatic(def_id),
                         );
                     }
                     CallKind::StaticMut => {
-                        self.ctx.push_or_insert_map_place_rlvalue(
+                        self.ctx.replace_map_place_rlvalue(
                             destination.local,
                             RLValue::TermCallStaticMut(def_id),
                         );
@@ -407,7 +410,7 @@ where
         log::trace!("{}", message);
 
         self.ctx
-            .push_or_insert_map_place_rlvalue(place.local, RLValue::Rvalue(rvalue.clone()));
+            .replace_map_place_rlvalue(place.local, RLValue::Rvalue(rvalue.clone()));
         self.super_assign(place, rvalue, location);
     }
 
