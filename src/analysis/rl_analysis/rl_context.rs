@@ -4,6 +4,7 @@ use crate::analysis::Analyzer;
 use super::rl_graph::RLGraph;
 use super::rl_graph::{RLEdge, RLIndex, RLNode};
 use rustc_const_eval::interpret::GlobalAlloc;
+use rustc_hash::{FxHashMap, FxHashSet};
 use rustc_hir::def_id::DefIndex;
 use rustc_middle::mir::{self, Operand, Rvalue};
 use rustc_middle::ty;
@@ -57,6 +58,7 @@ impl<'tcx, 'a> RLTy<'tcx, 'a> {
 }
 
 #[allow(dead_code)]
+#[derive(Clone)]
 pub enum RLValue<'tcx> {
     /// A MIR rvalue.
     Rvalue(mir::Rvalue<'tcx>),
@@ -79,6 +81,21 @@ pub enum RLValue<'tcx> {
     /// It means the used of `unsafe` to mutate the static.
     TermCallStaticMut(DefId),
 }
+
+pub struct ComeFromSwitchCache<'tcx> {
+    pub cache: FxHashMap<mir::Local, Option<RLValue<'tcx>>>,
+    pub set_targets: FxHashSet<mir::BasicBlock>,
+}
+
+impl<'tcx> ComeFromSwitchCache<'tcx> {
+    pub fn new(
+        cache: FxHashMap<mir::Local, Option<RLValue<'tcx>>>,
+        set_targets: FxHashSet<mir::BasicBlock>,
+    ) -> Self {
+        Self { cache, set_targets }
+    }
+}
+
 pub struct RLContext<'tcx, 'a, G>
 where
     G: RLGraph + Default + Clone + Serialize,
@@ -95,8 +112,23 @@ where
 
     // Map from basic block to the basic blocks that are the parent of the current basic block.
     // Vector size is not 1 only when a SwitchInt terminator was encoutered.
-    pub map_parent_bb: rustc_hash::FxHashMap<mir::BasicBlock, Vec<mir::BasicBlock>>,
+    pub map_parent_bb: FxHashMap<mir::BasicBlock, Vec<mir::BasicBlock>>,
 
+    // The cache is used only when a SwitchInt terminator is encauntered.
+    // It is used to simulate the visit of the basic blocks that are the target of the SwitchInt.
+    //
+    // We store the `map_place_rlvalue` and the `targets`.
+    // The map is used to keep the state and when a basic block
+    // in the targets is visited we restore the real `map_place_rlvalue`
+    // with the cache one.
+    pub come_from_switch_cache: Option<ComeFromSwitchCache<'tcx>>,
+
+    // Map of places and their types, this refers to the local_def_id we are visiting.
+    // It is used to keep track of the type of a local variable.
+    //
+    // Basically, it is used to weight the edges of the graph.
+    // The weight of the edge is the type of the argument.
+    pub map_place_ty: FxHashMap<mir::Local, RLTy<'tcx, 'a>>,
     // Abstract state.
     // Map of places and their rvalues, this refers to the local_def_id we are visiting.
     // It is used to keep track of the rvalue of a local variable.
@@ -106,24 +138,16 @@ where
     // when it is aliased to a local variable.
     //
     // See `visit_local` function.
-    pub map_place_rlvalue: rustc_hash::FxHashMap<mir::Local, Option<RLValue<'tcx>>>,
+    pub map_place_rlvalue: FxHashMap<mir::Local, Option<RLValue<'tcx>>>,
 
     // Abstract domain.
-    pub _map_bb_to_map_place_rlvalue:
-        rustc_hash::FxHashMap<mir::BasicBlock, rustc_hash::FxHashMap<mir::Local, RLValue<'tcx>>>,
-
-    // Abstract domain/state.
-    // Map of places and their types, this refers to the local_def_id we are visiting.
-    // It is used to keep track of the type of a local variable.
-    //
-    // Basically, it is used to weight the edges of the graph.
-    // The weight of the edge is the type of the argument.
-    pub map_place_ty: rustc_hash::FxHashMap<mir::Local, RLTy<'tcx, 'a>>,
+    pub map_bb_to_map_place_rlvalue:
+        FxHashMap<mir::BasicBlock, FxHashMap<mir::Local, Option<RLValue<'tcx>>>>,
 
     // Map from def_id to the index of the node in the graph.
     // It is used to retrieve the index of the node in the graph
     // when we need to add an edge.
-    pub rl_graph_index_map: rustc_hash::FxHashMap<DefId, G::Index>,
+    pub rl_graph_index_map: FxHashMap<DefId, G::Index>,
 }
 
 impl<G> RLContext<'_, '_, G>
@@ -138,11 +162,12 @@ where
         Self {
             stack_local_def_id: Vec::new(),
             stack_basic_block: Vec::new(),
-            map_parent_bb: rustc_hash::FxHashMap::default(),
-            map_place_rlvalue: rustc_hash::FxHashMap::default(),
-            _map_bb_to_map_place_rlvalue: rustc_hash::FxHashMap::default(),
-            map_place_ty: rustc_hash::FxHashMap::default(),
-            rl_graph_index_map: rustc_hash::FxHashMap::default(),
+            map_parent_bb: FxHashMap::default(),
+            come_from_switch_cache: None,
+            map_place_rlvalue: FxHashMap::default(),
+            map_bb_to_map_place_rlvalue: FxHashMap::default(),
+            map_place_ty: FxHashMap::default(),
+            rl_graph_index_map: FxHashMap::default(),
         }
     }
 }

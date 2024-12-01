@@ -1,3 +1,4 @@
+use crate::analysis::rl_analysis::rl_context::ComeFromSwitchCache;
 use crate::analysis::rl_analysis::rl_context::RLTy;
 use crate::analysis::rl_analysis::rl_context::RLValue;
 use crate::analysis::rl_analysis::rl_weight_resolver::RLWeightResolver;
@@ -58,12 +59,12 @@ where
 
         self.ctx.stack_local_def_id.push(local_def_id.to_def_id());
 
-        // It ensures that the local variable is in the map.
+        // It ensures that the local variable is in the map with all rlvalue set to None.
         for (local, _) in body.local_decls.iter_enumerated() {
             self.ctx.map_place_rlvalue.insert(local, None);
         }
 
-        // It ensures that the local variable is in the map.
+        // It ensures that the local variable is in the map with the corresponding type.
         for (local, local_decl) in body.local_decls.iter_enumerated() {
             let ty = RLTy::new(
                 local_decl.ty.kind(),
@@ -225,13 +226,32 @@ where
 
     // Call by the super_body
     fn visit_basic_block_data(&mut self, block: mir::BasicBlock, data: &mir::BasicBlockData<'tcx>) {
-        self.ctx.stack_basic_block.push(block);
         let message = self.analyzer.modify_if_needed(
             format!("Visiting the basic_block_data: {:?}, {:?}", block, data).as_str(),
             TextMod::Yellow,
         );
         log::trace!("{}", message);
+
+        self.ctx.stack_basic_block.push(block);
+
+        // Check if we should restore the map_place_rlvalue because we are coming from a switch
+        // and the current `block` was a possibile target (a branch candidate).
+        // If this block is the last target the cache is cleared.
+        if let Some(ref mut come_from_a_switch_cache) = self.ctx.come_from_switch_cache {
+            if come_from_a_switch_cache.set_targets.contains(&block) {
+                self.ctx.map_place_rlvalue = come_from_a_switch_cache.cache.clone();
+                come_from_a_switch_cache.set_targets.remove(&block);
+                if come_from_a_switch_cache.set_targets.is_empty() {
+                    self.ctx.come_from_switch_cache = None;
+                }
+            }
+        }
+
         self.super_basic_block_data(block, data);
+
+        self.ctx
+            .map_bb_to_map_place_rlvalue
+            .insert(block, self.ctx.map_place_rlvalue.clone());
         self.ctx.stack_basic_block.pop();
     }
 
@@ -390,6 +410,11 @@ where
                 for target in targets.all_targets() {
                     self.ctx.add_current_bb_as_parent_of(*target);
                 }
+
+                self.ctx.come_from_switch_cache = Some(ComeFromSwitchCache::new(
+                    self.ctx.map_place_rlvalue.clone(),
+                    rustc_hash::FxHashSet::from_iter(targets.all_targets().iter().copied()),
+                ));
             }
             mir::TerminatorKind::Goto { target } => self.ctx.add_current_bb_as_parent_of(*target),
             mir::TerminatorKind::Drop {
