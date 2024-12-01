@@ -57,7 +57,7 @@ where
     pub fn visit_local_def_id(&mut self, local_def_id: LocalDefId, body: &'a mir::Body<'tcx>) {
         let _ = self.add_node_if_needed(local_def_id.to_def_id());
 
-        self.ctx.stack_local_def_id.push(local_def_id.to_def_id());
+        self.ctx.current_local_def_id = Some(local_def_id.to_def_id());
 
         // It ensures that the local variable is in the map with all rlvalue set to None.
         for (local, _) in body.local_decls.iter_enumerated() {
@@ -100,7 +100,8 @@ where
         // Clear map_parent_bb
         self.ctx.map_parent_bb = rustc_hash::FxHashMap::default();
 
-        self.ctx.stack_local_def_id.pop();
+        // Clear current_local_def_id
+        self.ctx.current_local_def_id = None;
     }
 
     /// Update the arguments of the function call.
@@ -176,11 +177,11 @@ where
     fn add_edge(&mut self, to_def_id: DefId, arg_weights: Vec<f32>) {
         log::debug!(
             "Adding an edge between the current visited function ({:?}) and the function that is called ({:?}) with the arguments: {:?}",
-            self.ctx.stack_local_def_id.last().unwrap(),
+            self.ctx.current_local_def_id.unwrap(),
             to_def_id,
             arg_weights
         );
-        let fun_caller = self.ctx.rl_graph_index_map[self.ctx.stack_local_def_id.last().unwrap()];
+        let fun_caller = self.ctx.rl_graph_index_map[&self.ctx.current_local_def_id.unwrap()];
         let fun_callee = self.add_node_if_needed(to_def_id);
         let edge = RLEdge::create(arg_weights);
         self.rl_graph.rl_add_edge(fun_caller, fun_callee, edge);
@@ -232,27 +233,30 @@ where
         );
         log::trace!("{}", message);
 
-        self.ctx.stack_basic_block.push(block);
+        self.ctx.current_basic_block = Some(block);
 
         // Check if we should restore the map_place_rlvalue because we are coming from a switch
         // and the current `block` was a possibile target (a branch candidate).
         // If this block is the last target the cache is cleared.
-        if let Some(ref mut come_from_a_switch_cache) = self.ctx.come_from_switch_cache {
+        if let Some(come_from_a_switch_cache) = self.ctx.stack_come_from_switch_cache.last_mut() {
             if come_from_a_switch_cache.set_targets.contains(&block) {
                 self.ctx.map_place_rlvalue = come_from_a_switch_cache.cache.clone();
                 come_from_a_switch_cache.set_targets.remove(&block);
                 if come_from_a_switch_cache.set_targets.is_empty() {
-                    self.ctx.come_from_switch_cache = None;
+                    self.ctx.stack_come_from_switch_cache.pop();
                 }
             }
         }
 
         self.super_basic_block_data(block, data);
 
+        // Save the map_place_rlvalue in the map_bb_to_map_place_rlvalue
         self.ctx
             .map_bb_to_map_place_rlvalue
             .insert(block, self.ctx.map_place_rlvalue.clone());
-        self.ctx.stack_basic_block.pop();
+
+        // Clear the map_place_rlvalue
+        self.ctx.current_basic_block = None;
     }
 
     // TODO: implement
@@ -411,10 +415,12 @@ where
                     self.ctx.add_current_bb_as_parent_of(*target);
                 }
 
-                self.ctx.come_from_switch_cache = Some(ComeFromSwitchCache::new(
-                    self.ctx.map_place_rlvalue.clone(),
-                    rustc_hash::FxHashSet::from_iter(targets.all_targets().iter().copied()),
-                ));
+                self.ctx
+                    .stack_come_from_switch_cache
+                    .push(ComeFromSwitchCache::new(
+                        self.ctx.map_place_rlvalue.clone(),
+                        rustc_hash::FxHashSet::from_iter(targets.all_targets().iter().copied()),
+                    ));
             }
             mir::TerminatorKind::Goto { target } => self.ctx.add_current_bb_as_parent_of(*target),
             mir::TerminatorKind::Drop {

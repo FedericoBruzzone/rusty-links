@@ -100,28 +100,26 @@ pub struct RLContext<'tcx, 'a, G>
 where
     G: RLGraph + Default + Clone + Serialize,
 {
-    // Stack of local_def_id and local_decls.
-    // It should enough to keep track the current function and its local variables,
-    // becuase the MIR does not allow nested functions.
-    pub stack_local_def_id: Vec<DefId>, // , &'a IndexVec<mir::Local, mir::LocalDecl<'tcx>>
+    /// The `local_def_id` is used to keep track of the current function that is visited.
+    /// The MIR does not allow nested functions.
+    pub current_local_def_id: Option<DefId>, // , &'a IndexVec<mir::Local, mir::LocalDecl<'tcx>>
 
-    // Stack of basic blocks.
-    // It should be enough to keep track the current function and its basic blocks,
-    // because the MIR does not allow nested functions.
-    pub stack_basic_block: Vec<mir::BasicBlock>,
+    /// The `basic_block` is used to keep track of the current basic block that is visited.
+    /// The MIR does not allow nested functions.
+    pub current_basic_block: Option<mir::BasicBlock>,
+
+    /// The cache is used only when a SwitchInt terminator is encauntered.
+    /// It is used to simulate the visit of the basic blocks that are the target of the SwitchInt.
+    ///
+    /// We store the `map_place_rlvalue` and the `targets`.
+    /// The map is used to keep the state and when a basic block
+    /// in the targets is visited we restore the real `map_place_rlvalue`
+    /// with the cache one.
+    pub stack_come_from_switch_cache: Vec<ComeFromSwitchCache<'tcx>>,
 
     // Map from basic block to the basic blocks that are the parent of the current basic block.
     // Vector size is not 1 only when a SwitchInt terminator was encoutered.
     pub map_parent_bb: FxHashMap<mir::BasicBlock, Vec<mir::BasicBlock>>,
-
-    // The cache is used only when a SwitchInt terminator is encauntered.
-    // It is used to simulate the visit of the basic blocks that are the target of the SwitchInt.
-    //
-    // We store the `map_place_rlvalue` and the `targets`.
-    // The map is used to keep the state and when a basic block
-    // in the targets is visited we restore the real `map_place_rlvalue`
-    // with the cache one.
-    pub come_from_switch_cache: Option<ComeFromSwitchCache<'tcx>>,
 
     // Map of places and their types, this refers to the local_def_id we are visiting.
     // It is used to keep track of the type of a local variable.
@@ -160,10 +158,10 @@ where
 {
     pub fn new() -> Self {
         Self {
-            stack_local_def_id: Vec::new(),
-            stack_basic_block: Vec::new(),
+            current_local_def_id: None,
+            current_basic_block: None,
             map_parent_bb: FxHashMap::default(),
-            come_from_switch_cache: None,
+            stack_come_from_switch_cache: Vec::new(),
             map_place_rlvalue: FxHashMap::default(),
             map_bb_to_map_place_rlvalue: FxHashMap::default(),
             map_place_ty: FxHashMap::default(),
@@ -186,10 +184,10 @@ where
 
     pub fn add_current_bb_as_parent_of(&mut self, bb: mir::BasicBlock) {
         if let Some(parents) = self.map_parent_bb.get_mut(&bb) {
-            parents.push(*self.stack_basic_block.last().unwrap());
+            parents.push(self.current_basic_block.unwrap());
         } else {
             self.map_parent_bb
-                .insert(bb, vec![*self.stack_basic_block.last().unwrap()]);
+                .insert(bb, vec![self.current_basic_block.unwrap()]);
         }
     }
 

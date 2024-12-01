@@ -200,30 +200,94 @@ const test_static2::promoted[0]: &[char; 5] = {
 
 fn main() -> () {
     let mut _0: ();
-    let _1: &fn();
-    let _2: ();
-    let mut _3: fn();
-    scope 1 {
-        debug t => _1;
-    }
+    let mut _1: bool;
+    let mut _2: bool;
+    let _3: ();
+    let mut _4: std::fmt::Arguments<'_>;
+    let _5: &[&str; 1];
+    let _6: ();
+    let mut _7: std::fmt::Arguments<'_>;
+    let _8: &[&str; 1];
+    let _9: ();
+    let mut _10: std::fmt::Arguments<'_>;
+    let _11: &[&str; 1];
 
     bb0: {
-        _1 = const main::promoted[0];
-        _3 = copy (*_1);
-        _2 = move _3() -> [return: bb1, unwind continue];
+        _1 = test_static() -> [return: bb1, unwind continue];
     }
 
     bb1: {
+        switchInt(move _1) -> [0: bb8, otherwise: bb2];
+    }
+
+    bb2: {
+        _2 = test_static2() -> [return: bb3, unwind continue];
+    }
+
+    bb3: {
+        switchInt(move _2) -> [0: bb6, otherwise: bb4];
+    }
+
+    bb4: {
+        _5 = const main::promoted[0];
+        _4 = std::fmt::Arguments::<'_>::new_const::<1>(copy _5) -> [return: bb5, unwind continue];
+    }
+
+    bb5: {
+        _3 = std::io::_print(move _4) -> [return: bb10, unwind continue];
+    }
+
+    bb6: {
+        _8 = const main::promoted[1];
+        _7 = std::fmt::Arguments::<'_>::new_const::<1>(copy _8) -> [return: bb7, unwind continue];
+    }
+
+    bb7: {
+        _6 = std::io::_print(move _7) -> [return: bb10, unwind continue];
+    }
+
+    bb8: {
+        _11 = const main::promoted[2];
+        _10 = std::fmt::Arguments::<'_>::new_const::<1>(copy _11) -> [return: bb9, unwind continue];
+    }
+
+    bb9: {
+        _9 = std::io::_print(move _10) -> [return: bb10, unwind continue];
+    }
+
+    bb10: {
         return;
     }
 }
 
-const main::promoted[0]: &fn() = {
-    let mut _0: &fn();
-    let mut _1: fn();
+const main::promoted[0]: &[&str; 1] = {
+    let mut _0: &[&str; 1];
+    let mut _1: [&str; 1];
 
     bb0: {
-        _1 = const TEST_LAMBDA_C;
+        _1 = [const "Test passed\n"];
+        _0 = &_1;
+        return;
+    }
+}
+
+const main::promoted[1]: &[&str; 1] = {
+    let mut _0: &[&str; 1];
+    let mut _1: [&str; 1];
+
+    bb0: {
+        _1 = [const "Test failed\n"];
+        _0 = &_1;
+        return;
+    }
+}
+
+const main::promoted[2]: &[&str; 1] = {
+    let mut _0: &[&str; 1];
+    let mut _1: [&str; 1];
+
+    bb0: {
+        _1 = [const "Test failed\n"];
         _0 = &_1;
         return;
     }
@@ -243,10 +307,18 @@ digraph {
     11 [ label="i11: DefId(2:2969 ~ core[47af]::cmp::PartialEq::eq)"]
     12 [ label="i12: DefId(0:14 ~ local_tests[65b4]::test_static2)"]
     13 [ label="i13: DefId(0:15 ~ local_tests[65b4]::main)"]
-    14 [ label="i14: DefId(0:0 ~ local_tests[65b4])"]
+    14 [ label="i14: DefId(2:10973 ~ core[47af]::fmt::{impl#2})"]
+    15 [ label="i15: DefId(1:3734 ~ std[d5e6]::io::stdio::_print)"]
     10 -> 11 [ label="2.00"]
     10 -> 11 [ label="2.00"]
     12 -> 11 [ label="2.00"]
-    13 -> 14 [ label="-0.00"]
+    13 -> 10 [ label="-0.00"]
+    13 -> 12 [ label="-0.00"]
+    13 -> 14 [ label="1.00"]
+    13 -> 15 [ label="1.00"]
+    13 -> 14 [ label="1.00"]
+    13 -> 15 [ label="1.00"]
+    13 -> 14 [ label="1.00"]
+    13 -> 15 [ label="1.00"]
 }
 
