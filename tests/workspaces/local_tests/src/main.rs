@@ -238,31 +238,23 @@ fn main() {
     // let t = unsafe { TEST_LAMBDA_MUT };
     // t();
     
-    // let t = unsafe { &TEST_LAMBDA_MUT };
-    // t();
+    let t = unsafe { &TEST_LAMBDA_MUT };
+    t();
     
     // let t = TEST_LAMBDA_C;
     // t();
-
-    // TODO
-    // let t = &TEST_LAMBDA_C;
-    // t();
-
-    // match test_static() {
-    //     false => println!("Test failed"),
-    //     true => match test_static2() {
-    //         true => println!("Test passed"),
+  //         true => println!("Test passed"),
     //         false => println!("Test failed"),
     //     },
     // }
 
-    if test_static() {
-        if test_static2() {
-            println!("Test passed");
-        } else {
-            println!("Test failed");
-        }
-    } else {
-        println!("Test failed");
-    }
+    // if test_static() {
+    //     if test_static2() {
+    //         println!("Test passed");
+    //     } else {
+    //         println!("Test failed");
+    //     }
+    // } else {
+    //     println!("Test failed");
+    // }
 }

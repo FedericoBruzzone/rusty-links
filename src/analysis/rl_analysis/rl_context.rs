@@ -58,7 +58,7 @@ impl<'tcx, 'a> RLTy<'tcx, 'a> {
 }
 
 #[allow(dead_code)]
-#[derive(Clone)]
+#[derive(Debug, Clone)]
 pub enum RLValue<'tcx> {
     /// A MIR rvalue.
     Rvalue(mir::Rvalue<'tcx>),
@@ -208,23 +208,23 @@ where
         &self,
         func: &mir::Operand<'tcx>,
         analyzer: &Analyzer,
-    ) -> (DefId, CallKind) {
+    ) -> Vec<(DefId, CallKind)> {
         match func {
             mir::Operand::Copy(place) => {
-                let (def_id, call_kind) = self.retrieve_def_id(place.local, analyzer);
+                let res = self.retrieve_def_id(place.local, analyzer);
                 log::debug!(
                     "Retrieved(Copy) the def_id of the function (local: {:?}) that is called",
                     place.local
                 );
-                (def_id, call_kind)
+                res
             }
             Operand::Move(place) => {
-                let (def_id, call_kind) = self.retrieve_def_id(place.local, analyzer);
+                let res = self.retrieve_def_id(place.local, analyzer);
                 log::debug!(
                     "Retrieved(Move) the def_id of the function (local: {:?}) that is called",
                     place.local
                 );
-                (def_id, call_kind)
+                res
             }
             Operand::Constant(const_operand) => {
                 let (def_id, call_kind) = self.get_def_id(const_operand, analyzer);
@@ -233,7 +233,7 @@ where
                     def_id,
                     call_kind
                 );
-                (def_id, call_kind)
+                vec![(def_id, call_kind)]
             }
         }
     }
@@ -248,7 +248,11 @@ where
     /// Note that the `closure` is handled in the `get_def_id` function, not in this one.
     ///
     /// This function operates in O(n) where n is the depth of the recursion.
-    pub fn retrieve_def_id(&self, local: mir::Local, analyzer: &Analyzer) -> (DefId, CallKind) {
+    pub fn retrieve_def_id(
+        &self,
+        local: mir::Local,
+        analyzer: &Analyzer,
+    ) -> Vec<(DefId, CallKind)> {
         log::debug!(
             "Retrieving the def_id of the function (local: {:?}) that is called",
             local
@@ -275,7 +279,7 @@ where
                 // by `retrieve_call_def_id` in case of a constant.
                 match const_operand.const_ {
                     mir::Const::Val(const_value, ty) => {
-                        self.retrieve_const_val(const_value, ty, analyzer)
+                        vec![self.retrieve_const_val(const_value, ty, analyzer)]
                     }
                     mir::Const::Unevaluated(unevaluated_const, ty) => match ty.kind() {
                         ty::TyKind::FnPtr(_, _) => {
@@ -289,7 +293,7 @@ where
                             //     _1 = const  const {alloc11: &fn()}-> [return: bb1, unwind continue];
                             // }
                             // ```
-                            self.def_id_as_static_or_const(unevaluated_const.def, analyzer)
+                            vec![self.def_id_as_static_or_const(unevaluated_const.def, analyzer)]
                         }
                         ty::TyKind::Ref(_, _, _) => panic!("FCB"),
                         _ => unreachable!(),

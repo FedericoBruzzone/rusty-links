@@ -97,6 +97,7 @@ where
             self.ctx.map_place_ty.remove(&local);
         }
 
+        log::error!("map_bb_parent: {:?}", self.ctx.map_parent_bb);
         // Clear map_parent_bb
         self.ctx.map_parent_bb = rustc_hash::FxHashMap::default();
 
@@ -353,7 +354,11 @@ where
                 );
                 log::trace!("{}", message);
 
-                let (def_id, call_kind) = self.ctx.resolve_call_def_id(func, self.analyzer);
+                let resolved_call = self.ctx.resolve_call_def_id(func, self.analyzer);
+
+                // It is not important what branch is taken.
+                // We need the vector only to create edges between the caller and the callee.
+                let (def_id, call_kind) = &resolved_call[0];
 
                 // Update the map_place_rvalue with the destination of the call.
                 match call_kind {
@@ -364,38 +369,43 @@ where
                         );
                     }
                     CallKind::Function | CallKind::Closure | CallKind::Method => {
-                        self.ctx
-                            .insert_map_place_rlvalue(destination.local, RLValue::TermCall(def_id));
+                        self.ctx.insert_map_place_rlvalue(
+                            destination.local,
+                            RLValue::TermCall(*def_id),
+                        );
                     }
                     CallKind::Const => {
                         self.ctx.insert_map_place_rlvalue(
                             destination.local,
-                            RLValue::TermCallConst(def_id),
+                            RLValue::TermCallConst(*def_id),
                         );
                     }
                     CallKind::Static => {
                         self.ctx.insert_map_place_rlvalue(
                             destination.local,
-                            RLValue::TermCallStatic(def_id),
+                            RLValue::TermCallStatic(*def_id),
                         );
                     }
                     CallKind::StaticMut => {
                         self.ctx.insert_map_place_rlvalue(
                             destination.local,
-                            RLValue::TermCallStaticMut(def_id),
+                            RLValue::TermCallStaticMut(*def_id),
                         );
                     }
                     CallKind::Unknown => unreachable!(),
                 }
 
-                if call_kind != CallKind::Unknown && call_kind != CallKind::Clone {
-                    let args = self.update_args(args, &call_kind);
-                    let arg_weights =
-                        RLWeightResolver::new(&self.ctx).resolve_arg_weights(&call_kind, &args);
-                    self.add_edge(def_id, arg_weights);
+                for (def_id, call_kind) in resolved_call {
+                    if call_kind != CallKind::Unknown && call_kind != CallKind::Clone {
+                        let args = self.update_args(args, &call_kind);
+                        let arg_weights =
+                            RLWeightResolver::new(&self.ctx).resolve_arg_weights(&call_kind, &args);
+                        self.add_edge(def_id, arg_weights);
+                    }
                 }
 
-                // TODO: It assume that the target is alyays Some
+                // It assume that the target is alyays Some.
+                // From the docs it is not clear when it can be None.
                 self.ctx.add_current_bb_as_parent_of((*target).unwrap());
 
                 self.visit_place(
@@ -437,7 +447,7 @@ where
                 self.ctx.add_current_bb_as_parent_of(*real_target)
             }
             mir::TerminatorKind::FalseUnwind { real_target, .. } => {
-                self.ctx.add_current_bb_as_parent_of(*real_target)
+                self.ctx.add_current_bb_as_parent_of(*real_target);
             }
             mir::TerminatorKind::Yield { .. } => todo!(),
             mir::TerminatorKind::InlineAsm { .. } => todo!(),
