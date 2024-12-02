@@ -21,8 +21,8 @@ impl<'tcx, 'a, G> RLWeightResolver<'tcx, 'a, G>
 where
     G: RLGraph + Default + Clone + Serialize,
 {
-    pub fn new(context: &'a RLContext<'tcx, 'a, G>) -> Self {
-        Self { _ctx: context }
+    pub fn new(ctx: &'a RLContext<'tcx, 'a, G>) -> Self {
+        Self { _ctx: ctx }
     }
 
     pub fn resolve_arg_weights(

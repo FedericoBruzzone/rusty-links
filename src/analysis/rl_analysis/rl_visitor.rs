@@ -1,3 +1,4 @@
+use crate::analysis::rl_analysis::rl_call_resolver::RLCallResolver;
 use crate::analysis::rl_analysis::rl_context::ComeFromSwitchCache;
 use crate::analysis::rl_analysis::rl_context::RLTy;
 use crate::analysis::rl_analysis::rl_context::RLValue;
@@ -384,11 +385,13 @@ where
                     self.ctx.map_place_rlvalue.clone(),
                 );
 
-                let resolved_call = self.ctx.resolve_call_def_id(
-                    func,
-                    self.analyzer,
-                    self.ctx.current_basic_block.unwrap(),
-                );
+                let resolved_call = RLCallResolver::new(&self.ctx, self.analyzer)
+                    .resolve_call_def_id(func, self.ctx.current_basic_block.unwrap());
+                // self.ctx.resolve_call_def_id(
+                //     func,
+                //     self.analyzer,
+                //     self.ctx.current_basic_block.unwrap(),
+                // );
 
                 // It is not important what branch is taken.
                 // We need the vector only to create edges between the caller and the callee.

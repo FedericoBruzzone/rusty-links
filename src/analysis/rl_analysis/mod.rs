@@ -1,3 +1,4 @@
+mod rl_call_resolver;
 mod rl_context;
 pub mod rl_graph;
 mod rl_petgraph;
