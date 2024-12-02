@@ -242,9 +242,8 @@ fn main() {
     // let t = TEST_LAMBDA_C;
     // t();
 
-    // TODO
-    let t = &TEST_LAMBDA_C;
-    t();
+    // let t = &TEST_LAMBDA_C;
+    // t();
 
     // if test_static() {
     //     if test_static2() {
@@ -271,17 +270,19 @@ struct T {
 }
 
 fn main2() {
-    let dummy = 10;
-    let call_f: &fn(T);
-    let x = T { _value: 10 };
+    let lambda = || {
+        let dummy = 10;
+        let call_f: fn(T);
+        let x = T { _value: 10 };
+        if dummy == 10 {
+            call_f = test;
+        } else {
+            call_f = test2;
+        }
 
-    if dummy == 10 {
-        call_f = &(test as fn(T));
-    } else {
-        call_f = &(test2 as fn(T));
-    }
-
-    call_f(x);
+        call_f(x);
+    };
+    lambda();
 }
 
 fn test(t: T) {
@@ -291,3 +292,4 @@ fn test(t: T) {
 fn test2(t: T) {
     let _ = t;
 }
+

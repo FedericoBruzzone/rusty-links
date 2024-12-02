@@ -1,3 +1,5 @@
+use core::panic;
+
 use crate::analysis::utils::RUSTC_DEPENDENCIES;
 use crate::analysis::Analyzer;
 
@@ -423,7 +425,10 @@ where
                 }
                 _ => unreachable!(),
             },
-            _ => unreachable!(),
+            RLValue::Rvalue(Rvalue::CopyForDeref(place)) => {
+                self.retrieve_upper_local_non_const(place.local, bb, candidates)
+            }
+            x => panic!("The RLValue {:?} is not handled", x),
         }
     }
 
