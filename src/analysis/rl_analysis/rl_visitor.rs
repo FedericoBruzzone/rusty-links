@@ -4,6 +4,7 @@ use crate::analysis::rl_analysis::rl_context::RLValue;
 use crate::analysis::rl_analysis::rl_weight_resolver::RLWeightResolver;
 use crate::analysis::utils::TextMod;
 
+use rustc_hash::FxHashSet;
 use rustc_middle::mir;
 use rustc_middle::mir::visit::Visitor;
 use rustc_middle::mir::Rvalue;
@@ -97,9 +98,19 @@ where
             self.ctx.map_place_ty.remove(&local);
         }
 
-        log::error!("map_bb_parent: {:?}", self.ctx.map_parent_bb);
+        log::debug!("The map_bb_parent: {:?}", self.ctx.map_parent_bb);
         // Clear map_parent_bb
         self.ctx.map_parent_bb = rustc_hash::FxHashMap::default();
+
+        log::debug!(
+            "The map_bb_to_map_place_rlvalue: {:?}",
+            self.ctx.map_bb_to_map_place_rlvalue
+        );
+        // Clear map_bb_to_map_place_rlvalue
+        self.ctx.map_bb_to_map_place_rlvalue = rustc_hash::FxHashMap::default();
+
+        // Clear map_bb_used_places
+        self.ctx.map_bb_used_places = rustc_hash::FxHashMap::default();
 
         // Clear current_local_def_id
         self.ctx.current_local_def_id = None;
@@ -236,6 +247,18 @@ where
 
         self.ctx.current_basic_block = Some(block);
 
+        // Save all place used in this block.
+        // It is useful to know the place that are used in the block.
+        let all_places = data
+            .statements
+            .iter()
+            .flat_map(|x: &mir::Statement<'tcx>| match &x.kind {
+                mir::StatementKind::Assign(box_assign) => Some(box_assign.0),
+                _ => None,
+            })
+            .collect::<FxHashSet<_>>();
+        self.ctx.map_bb_used_places.insert(block, all_places);
+
         // Check if we should restore the map_place_rlvalue because we are coming from a switch
         // and the current `block` was a possibile target (a branch candidate).
         // If this block is the last target the cache is cleared.
@@ -354,7 +377,14 @@ where
                 );
                 log::trace!("{}", message);
 
-                let resolved_call = self.ctx.resolve_call_def_id(func, self.analyzer);
+                self.ctx.map_bb_to_map_place_rlvalue.insert(
+                    self.ctx.current_basic_block.unwrap(),
+                    self.ctx.map_place_rlvalue.clone(),
+                );
+
+                let resolved_call =
+                    self.ctx
+                        .resolve_call_def_id(func, &self.ctx.map_place_rlvalue, self.analyzer);
 
                 // It is not important what branch is taken.
                 // We need the vector only to create edges between the caller and the callee.

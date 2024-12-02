@@ -38,18 +38,18 @@ HELLO_C::{constant#0}: usize = {
 
 static mut TEST_LAMBDA_MUT: fn() = {
     let mut _0: fn();
-    let mut _1: {closure@src/main.rs:213:36: 213:38};
+    let mut _1: {closure@src/main.rs:211:36: 211:38};
 
     bb0: {
         StorageLive(_1);
-        _1 = {closure@src/main.rs:213:36: 213:38};
+        _1 = {closure@src/main.rs:211:36: 211:38};
         _0 = move _1 as fn() (PointerCoercion(ClosureFnPointer(Safe), Implicit));
         StorageDead(_1);
         return;
     }
 }
 
-fn TEST_LAMBDA_MUT::{closure#0}(_1: &{closure@src/main.rs:213:36: 213:38}) -> () {
+fn TEST_LAMBDA_MUT::{closure#0}(_1: &{closure@src/main.rs:211:36: 211:38}) -> () {
     let mut _0: ();
     scope 1 {
     }
@@ -61,18 +61,18 @@ fn TEST_LAMBDA_MUT::{closure#0}(_1: &{closure@src/main.rs:213:36: 213:38}) -> ()
 
 static TEST_LAMBDA: fn() = {
     let mut _0: fn();
-    let mut _1: {closure@src/main.rs:216:28: 216:30};
+    let mut _1: {closure@src/main.rs:214:28: 214:30};
 
     bb0: {
         StorageLive(_1);
-        _1 = {closure@src/main.rs:216:28: 216:30};
+        _1 = {closure@src/main.rs:214:28: 214:30};
         _0 = move _1 as fn() (PointerCoercion(ClosureFnPointer(Safe), Implicit));
         StorageDead(_1);
         return;
     }
 }
 
-fn TEST_LAMBDA::{closure#0}(_1: &{closure@src/main.rs:216:28: 216:30}) -> () {
+fn TEST_LAMBDA::{closure#0}(_1: &{closure@src/main.rs:214:28: 214:30}) -> () {
     let mut _0: ();
     scope 1 {
     }
@@ -84,18 +84,18 @@ fn TEST_LAMBDA::{closure#0}(_1: &{closure@src/main.rs:216:28: 216:30}) -> () {
 
 const TEST_LAMBDA_C: fn() = {
     let mut _0: fn();
-    let mut _1: {closure@src/main.rs:219:29: 219:31};
+    let mut _1: {closure@src/main.rs:217:29: 217:31};
 
     bb0: {
         StorageLive(_1);
-        _1 = {closure@src/main.rs:219:29: 219:31};
+        _1 = {closure@src/main.rs:217:29: 217:31};
         _0 = move _1 as fn() (PointerCoercion(ClosureFnPointer(Safe), Implicit));
         StorageDead(_1);
         return;
     }
 }
 
-fn TEST_LAMBDA_C::{closure#0}(_1: &{closure@src/main.rs:219:29: 219:31}) -> () {
+fn TEST_LAMBDA_C::{closure#0}(_1: &{closure@src/main.rs:217:29: 217:31}) -> () {
     let mut _0: ();
     scope 1 {
     }
@@ -200,28 +200,38 @@ const test_static2::promoted[0]: &[char; 5] = {
 
 fn main() -> () {
     let mut _0: ();
-    let _1: &fn();
-    let _2: *mut fn();
-    let _3: ();
-    let mut _4: fn();
+    let mut _2: i32;
+    let _3: bool;
+    let mut _4: fn() -> bool;
     scope 1 {
-        debug t => _1;
+        debug x => const 10_i32;
+        let _1: fn() -> bool;
+        scope 2 {
+            debug f_call => _1;
+        }
     }
 
     bb0: {
-        _2 = const {alloc11: *mut fn()};
-        _1 = &(*_2);
-        _4 = copy (*_1);
-        _3 = move _4() -> [return: bb1, unwind continue];
+        _2 = const 10_i32;
+        switchInt(move _2) -> [10: bb1, otherwise: bb2];
     }
 
     bb1: {
+        _1 = test_static as fn() -> bool (PointerCoercion(ReifyFnPointer, Implicit));
+        goto -> bb3;
+    }
+
+    bb2: {
+        _1 = test_static2 as fn() -> bool (PointerCoercion(ReifyFnPointer, Implicit));
+        goto -> bb3;
+    }
+
+    bb3: {
+        _4 = copy _1;
+        _3 = move _4() -> [return: bb4, unwind continue];
+    }
+
+    bb4: {
         return;
     }
 }
-
-alloc11 (static: TEST_LAMBDA_MUT, size: 8, align: 8) {
-    ╾───────alloc12───────╼                         │ ╾──────╼
-}
-
-alloc12 (fn: <{closure@src/main.rs:213:36: 213:38} as std::ops::FnOnce<()>>::call_once - shim)

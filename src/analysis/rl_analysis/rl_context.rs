@@ -6,7 +6,7 @@ use super::rl_graph::{RLEdge, RLIndex, RLNode};
 use rustc_const_eval::interpret::GlobalAlloc;
 use rustc_hash::{FxHashMap, FxHashSet};
 use rustc_hir::def_id::DefIndex;
-use rustc_middle::mir::{self, Operand, Rvalue};
+use rustc_middle::mir::{self, Operand, Place, Rvalue};
 use rustc_middle::ty;
 use rustc_span::def_id::DefId;
 use serde::de::DeserializeOwned;
@@ -127,6 +127,7 @@ where
     // Basically, it is used to weight the edges of the graph.
     // The weight of the edge is the type of the argument.
     pub map_place_ty: FxHashMap<mir::Local, RLTy<'tcx, 'a>>,
+
     // Abstract state.
     // Map of places and their rvalues, this refers to the local_def_id we are visiting.
     // It is used to keep track of the rvalue of a local variable.
@@ -141,6 +142,10 @@ where
     // Abstract domain.
     pub map_bb_to_map_place_rlvalue:
         FxHashMap<mir::BasicBlock, FxHashMap<mir::Local, Option<RLValue<'tcx>>>>,
+
+    /// Map from basic block to the places that are used in the basic block.
+    /// It is used to retrieve the places that are used in the basic block.
+    pub map_bb_used_places: FxHashMap<mir::BasicBlock, FxHashSet<Place<'tcx>>>,
 
     // Map from def_id to the index of the node in the graph.
     // It is used to retrieve the index of the node in the graph
@@ -165,6 +170,7 @@ where
             map_place_rlvalue: FxHashMap::default(),
             map_bb_to_map_place_rlvalue: FxHashMap::default(),
             map_place_ty: FxHashMap::default(),
+            map_bb_used_places: FxHashMap::default(),
             rl_graph_index_map: FxHashMap::default(),
         }
     }
@@ -207,11 +213,12 @@ where
     pub fn resolve_call_def_id(
         &self,
         func: &mir::Operand<'tcx>,
+        map_place_rlvalue: &FxHashMap<mir::Local, Option<RLValue<'tcx>>>,
         analyzer: &Analyzer,
     ) -> Vec<(DefId, CallKind)> {
         match func {
             mir::Operand::Copy(place) => {
-                let res = self.retrieve_def_id(place.local, analyzer);
+                let res = self.retrieve_def_id(place.local, map_place_rlvalue, analyzer);
                 log::debug!(
                     "Retrieved(Copy) the def_id of the function (local: {:?}) that is called",
                     place.local
@@ -219,7 +226,7 @@ where
                 res
             }
             Operand::Move(place) => {
-                let res = self.retrieve_def_id(place.local, analyzer);
+                let res = self.retrieve_def_id(place.local, map_place_rlvalue, analyzer);
                 log::debug!(
                     "Retrieved(Move) the def_id of the function (local: {:?}) that is called",
                     place.local
@@ -251,91 +258,109 @@ where
     pub fn retrieve_def_id(
         &self,
         local: mir::Local,
+        map_place_rlvalue: &FxHashMap<mir::Local, Option<RLValue<'tcx>>>,
         analyzer: &Analyzer,
     ) -> Vec<(DefId, CallKind)> {
         log::debug!(
             "Retrieving the def_id of the function (local: {:?}) that is called",
             local
         );
-        match self.map_place_rlvalue[&local]
-            .as_ref()
-            .unwrap_or_else(|| unreachable!())
+        if self.map_parent_bb.is_empty()
+            || self.map_parent_bb[&self.current_basic_block.unwrap()].len() == 1
         {
-            // _5 = const T
-            // T := main::promoted[0] // this could be function, method or a const
-            //   | {alloc1: &[char; 5]}
-            RLValue::Rvalue(Rvalue::Use(Operand::Constant(const_operand))) => {
-                // BASE CASE
-                // It safe at this point to assume that the constant is a function call.
-                // A closure (as terminator) can never be in the form:
-                // ```rust, ignore
-                // _5 = move|copy _6
-                // ```
-                // because the closure is always in the form:
-                // ```rust, ignore
-                // _5 = {closure@src/main.rs:18:18: 18:20} ...
-                // ```
-                // and this case is handled in the `get_def_id` which is called
-                // by `retrieve_call_def_id` in case of a constant.
-                match const_operand.const_ {
-                    mir::Const::Val(const_value, ty) => {
-                        vec![self.retrieve_const_val(const_value, ty, analyzer)]
-                    }
-                    mir::Const::Unevaluated(unevaluated_const, ty) => match ty.kind() {
-                        ty::TyKind::FnPtr(_, _) => {
-                            // The static in this case is difficult to replicate in the MIR
-                            // but we convert it.
-                            //
-                            // *NOTE* This is an expected case, since we are not able to replicate.
-                            // For instance, in the following MIR:
-                            // ```rust,ignore
-                            // bb0: {
-                            //     _1 = const  const {alloc11: &fn()}-> [return: bb1, unwind continue];
-                            // }
-                            // ```
-                            vec![self.def_id_as_static_or_const(unevaluated_const.def, analyzer)]
+            match map_place_rlvalue[&local]
+                .as_ref()
+                .unwrap_or_else(|| unreachable!())
+            {
+                // _5 = const T
+                // T := main::promoted[0] // this could be function, method or a const
+                //   | {alloc1: &[char; 5]}
+                RLValue::Rvalue(Rvalue::Use(Operand::Constant(const_operand))) => {
+                    // BASE CASE
+                    // It safe at this point to assume that the constant is a function call.
+                    // A closure (as terminator) can never be in the form:
+                    // ```rust, ignore
+                    // _5 = move|copy _6
+                    // ```
+                    // because the closure is always in the form:
+                    // ```rust, ignore
+                    // _5 = {closure@src/main.rs:18:18: 18:20} ...
+                    // ```
+                    // and this case is handled in the `get_def_id` which is called
+                    // by `retrieve_call_def_id` in case of a constant.
+                    match const_operand.const_ {
+                        mir::Const::Val(const_value, ty) => {
+                            vec![self.retrieve_const_val(const_value, ty, analyzer)]
                         }
-                        ty::TyKind::Ref(_, _, _) => panic!("FCB"),
+                        mir::Const::Unevaluated(unevaluated_const, ty) => match ty.kind() {
+                            ty::TyKind::FnPtr(_, _) => {
+                                // The static in this case is difficult to replicate in the MIR
+                                // but we convert it.
+                                //
+                                // *NOTE* This is an expected case, since we are not able to replicate.
+                                // For instance, in the following MIR:
+                                // ```rust,ignore
+                                // bb0: {
+                                //     _1 = const  const {alloc11: &fn()}-> [return: bb1, unwind continue];
+                                // }
+                                // ```
+                                vec![self.def_id_as_static_or_const(unevaluated_const.def, analyzer)]
+                            }
+                            ty::TyKind::Ref(_, _, _) => panic!("FCB"),
+                            _ => unreachable!(),
+                        },
                         _ => unreachable!(),
-                    },
-                    _ => unreachable!(),
+                    }
                 }
+                // _5 = copy (*_6)
+                RLValue::Rvalue(Rvalue::Use(Operand::Copy(place))) => {
+                    self.retrieve_def_id(place.local, map_place_rlvalue, analyzer)
+                }
+                // _5 = move _6
+                RLValue::Rvalue(Rvalue::Use(Operand::Move(place))) => {
+                    self.retrieve_def_id(place.local, map_place_rlvalue, analyzer)
+                }
+                // _5 = &(*10)
+                RLValue::Rvalue(Rvalue::Ref(_, _, place)) => {
+                    self.retrieve_def_id(place.local, map_place_rlvalue, analyzer)
+                }
+                // In rust is:
+                //
+                // ```rust, ignore
+                // let mut x = test_own as fn(T);
+                // x = test as fn(T);
+                // x(T { _value: 10 });
+                // ```
+                //
+                // In MIR is translated as:
+                // ```rust, ignore
+                // bb0: {
+                //     _1 = test_own as fn(T) (PointerCoercion(ReifyFnPointer, AsCast));
+                //     _2 = test as fn(T) (PointerCoercion(ReifyFnPointer, AsCast));
+                //     _1 = move _2;
+                //     _4 = copy _1;
+                //     _5 = T { _value: const 10_i32 };
+                //     _3 = move _4(move _5) -> [return: bb1, unwind continue];
+                // }
+                // ```
+                RLValue::Rvalue(Rvalue::Cast(_, operand, _)) => {
+                    self.resolve_call_def_id(operand, map_place_rlvalue, analyzer)
+                }
+                _ => unreachable!(),
             }
-            // _5 = copy (*_6)
-            RLValue::Rvalue(Rvalue::Use(Operand::Copy(place))) => {
-                self.retrieve_def_id(place.local, analyzer)
-            }
-            // _5 = move _6
-            RLValue::Rvalue(Rvalue::Use(Operand::Move(place))) => {
-                self.retrieve_def_id(place.local, analyzer)
-            }
-            // _5 = &(*10)
-            RLValue::Rvalue(Rvalue::Ref(_, _, place)) => {
-                self.retrieve_def_id(place.local, analyzer)
-            }
-            // In rust is:
-            //
-            // ```rust, ignore
-            // let mut x = test_own as fn(T);
-            // x = test as fn(T);
-            // x(T { _value: 10 });
-            // ```
-            //
-            // In MIR is translated as:
-            // ```rust, ignore
-            // bb0: {
-            //     _1 = test_own as fn(T) (PointerCoercion(ReifyFnPointer, AsCast));
-            //     _2 = test as fn(T) (PointerCoercion(ReifyFnPointer, AsCast));
-            //     _1 = move _2;
-            //     _4 = copy _1;
-            //     _5 = T { _value: const 10_i32 };
-            //     _3 = move _4(move _5) -> [return: bb1, unwind continue];
+        } else {
+            log::error!("{:?}", self.map_parent_bb);
+            log::error!("{:?}", self.map_bb_to_map_place_rlvalue);
+            unimplemented!()
+
+            // let all_targets = self.map_parent_bb[&self.current_basic_block.unwrap()].clone();
+            // let mut res = Vec::new();
+            // for target in all_targets {
+            //     let map_place_rlvalue = self.map_bb_to_map_place_rlvalue[&target].clone();
+            //     let res_target = self.retrieve_def_id(local, &map_place_rlvalue, analyzer);
+            //     res.extend(res_target);
             // }
-            // ```
-            RLValue::Rvalue(Rvalue::Cast(_, operand, _)) => {
-                self.resolve_call_def_id(operand, analyzer)
-            }
-            _ => unreachable!(),
+            // res
         }
     }
 
