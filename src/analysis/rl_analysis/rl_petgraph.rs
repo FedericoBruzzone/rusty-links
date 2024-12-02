@@ -82,7 +82,12 @@ impl RLGraph for graph::DiGraph<RLNode, RLEdge, RLIndex> {
              node: (graph::NodeIndex<RLIndex>, &RLNode)| {
                 let index = node.0.index();
                 let node = node.1;
-                format!("label=\"i{}: {}\"", index, node.def_id_str()) // format!("label=\"i{}: {:?}\"", index, node.def_id())
+                let promoted = match node.promoted() {
+                    Some(promoted) => format!("{:?}", promoted),
+                    None => "None".to_string(),
+                };
+                format!("label=\"i{}: {} - {}\"", index, node.def_id_str(), promoted)
+                // format!("label=\"i{}: {:?}\"", index, node.def_id())
             };
 
         println!(

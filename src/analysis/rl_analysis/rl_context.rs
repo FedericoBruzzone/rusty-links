@@ -6,7 +6,7 @@ use super::rl_graph::{RLEdge, RLIndex, RLNode};
 use rustc_const_eval::interpret::GlobalAlloc;
 use rustc_hash::{FxHashMap, FxHashSet};
 use rustc_hir::def_id::DefIndex;
-use rustc_middle::mir::{self, Operand, Place, Rvalue};
+use rustc_middle::mir::{self, Operand, Promoted, Rvalue};
 use rustc_middle::ty;
 use rustc_span::def_id::DefId;
 use serde::de::DeserializeOwned;
@@ -145,12 +145,12 @@ where
 
     /// Map from basic block to the places that are used in the basic block.
     /// It is used to retrieve the places that are used in the basic block.
-    pub map_bb_used_places: FxHashMap<mir::BasicBlock, FxHashSet<Place<'tcx>>>,
+    pub map_bb_used_locals: FxHashMap<mir::BasicBlock, FxHashSet<mir::Local>>,
 
     // Map from def_id to the index of the node in the graph.
     // It is used to retrieve the index of the node in the graph
     // when we need to add an edge.
-    pub rl_graph_index_map: FxHashMap<DefId, G::Index>,
+    pub rl_graph_index_map: FxHashMap<(DefId, Option<Promoted>), G::Index>,
 }
 
 impl<G> RLContext<'_, '_, G>
@@ -170,7 +170,7 @@ where
             map_place_rlvalue: FxHashMap::default(),
             map_bb_to_map_place_rlvalue: FxHashMap::default(),
             map_place_ty: FxHashMap::default(),
-            map_bb_used_places: FxHashMap::default(),
+            map_bb_used_locals: FxHashMap::default(),
             rl_graph_index_map: FxHashMap::default(),
         }
     }
@@ -213,12 +213,12 @@ where
     pub fn resolve_call_def_id(
         &self,
         func: &mir::Operand<'tcx>,
-        map_place_rlvalue: &FxHashMap<mir::Local, Option<RLValue<'tcx>>>,
         analyzer: &Analyzer,
-    ) -> Vec<(DefId, CallKind)> {
+        bb: mir::BasicBlock,
+    ) -> Vec<((DefId, Option<Promoted>), CallKind)> {
         match func {
             mir::Operand::Copy(place) => {
-                let res = self.retrieve_def_id(place.local, map_place_rlvalue, analyzer);
+                let res = self.retrieve_def_id(place.local, analyzer, bb);
                 log::debug!(
                     "Retrieved(Copy) the def_id of the function (local: {:?}) that is called",
                     place.local
@@ -226,7 +226,7 @@ where
                 res
             }
             Operand::Move(place) => {
-                let res = self.retrieve_def_id(place.local, map_place_rlvalue, analyzer);
+                let res = self.retrieve_def_id(place.local, analyzer, bb);
                 log::debug!(
                     "Retrieved(Move) the def_id of the function (local: {:?}) that is called",
                     place.local
@@ -258,17 +258,17 @@ where
     pub fn retrieve_def_id(
         &self,
         local: mir::Local,
-        map_place_rlvalue: &FxHashMap<mir::Local, Option<RLValue<'tcx>>>,
         analyzer: &Analyzer,
-    ) -> Vec<(DefId, CallKind)> {
+        bb: mir::BasicBlock,
+    ) -> Vec<((DefId, Option<Promoted>), CallKind)> {
         log::debug!(
             "Retrieving the def_id of the function (local: {:?}) that is called",
             local
         );
-        if self.map_parent_bb.is_empty()
-            || self.map_parent_bb[&self.current_basic_block.unwrap()].len() == 1
-        {
-            match map_place_rlvalue[&local]
+        if self.map_parent_bb.is_empty() || self.map_parent_bb[&bb].len() == 1 {
+            // It can be done because in the visit_terminator we always update set the map_bb_to_map_place_rlvalue
+            // with the current map_place_rlvalue.
+            match self.map_bb_to_map_place_rlvalue[&bb][&local]
                 .as_ref()
                 .unwrap_or_else(|| unreachable!())
             {
@@ -306,7 +306,15 @@ where
                                 // ```
                                 vec![self.def_id_as_static_or_const(unevaluated_const.def, analyzer)]
                             }
-                            ty::TyKind::Ref(_, _, _) => panic!("FCB"),
+                            ty::TyKind::Ref(_, _, _) => match unevaluated_const.promoted {
+                                Some(x) => {
+                                    let promoted = analyzer.tcx.promoted_mir(unevaluated_const.def);
+                                    let def_id = promoted[x].source.instance.def_id();
+                                    let promoted = promoted[x].source.promoted.unwrap();
+                                    vec![((def_id, Some(promoted)), CallKind::Const)]
+                                }
+                                None => unreachable!(),
+                            },
                             _ => unreachable!(),
                         },
                         _ => unreachable!(),
@@ -314,15 +322,15 @@ where
                 }
                 // _5 = copy (*_6)
                 RLValue::Rvalue(Rvalue::Use(Operand::Copy(place))) => {
-                    self.retrieve_def_id(place.local, map_place_rlvalue, analyzer)
+                    self.retrieve_def_id(place.local, analyzer, bb)
                 }
                 // _5 = move _6
                 RLValue::Rvalue(Rvalue::Use(Operand::Move(place))) => {
-                    self.retrieve_def_id(place.local, map_place_rlvalue, analyzer)
+                    self.retrieve_def_id(place.local, analyzer, bb)
                 }
-                // _5 = &(*10)
+
                 RLValue::Rvalue(Rvalue::Ref(_, _, place)) => {
-                    self.retrieve_def_id(place.local, map_place_rlvalue, analyzer)
+                    self.retrieve_def_id(place.local, analyzer, bb)
                 }
                 // In rust is:
                 //
@@ -344,23 +352,78 @@ where
                 // }
                 // ```
                 RLValue::Rvalue(Rvalue::Cast(_, operand, _)) => {
-                    self.resolve_call_def_id(operand, map_place_rlvalue, analyzer)
+                    self.resolve_call_def_id(operand, analyzer, bb)
                 }
                 _ => unreachable!(),
             }
         } else {
-            log::error!("{:?}", self.map_parent_bb);
-            log::error!("{:?}", self.map_bb_to_map_place_rlvalue);
-            unimplemented!()
+            let upper_local =
+                self.retrieve_upper_local_non_const(local, bb, &self.map_bb_used_locals[&bb]);
 
-            // let all_targets = self.map_parent_bb[&self.current_basic_block.unwrap()].clone();
-            // let mut res = Vec::new();
-            // for target in all_targets {
-            //     let map_place_rlvalue = self.map_bb_to_map_place_rlvalue[&target].clone();
-            //     let res_target = self.retrieve_def_id(local, &map_place_rlvalue, analyzer);
-            //     res.extend(res_target);
+            let all_targets = self.map_parent_bb[&self.current_basic_block.unwrap()].clone();
+            let mut res = Vec::new();
+            for target in all_targets {
+                let res_target = self.retrieve_def_id(upper_local, analyzer, target);
+                res.extend(res_target);
+            }
+            res
+        }
+    }
+
+    fn retrieve_upper_local_non_const(
+        &self,
+        local: mir::Local,
+        bb: mir::BasicBlock,
+        candidates: &FxHashSet<mir::Local>,
+    ) -> mir::Local {
+        if !candidates.contains(&local) {
+            return local;
+        }
+        match self.map_bb_to_map_place_rlvalue[&bb][&local]
+            .as_ref()
+            .unwrap_or_else(|| unreachable!())
+        {
+            // _5 = copy (*_6)
+            RLValue::Rvalue(Rvalue::Use(Operand::Copy(place))) => {
+                self.retrieve_upper_local_non_const(place.local, bb, candidates)
+            }
+            // _5 = move _6
+            RLValue::Rvalue(Rvalue::Use(Operand::Move(place))) => {
+                self.retrieve_upper_local_non_const(place.local, bb, candidates)
+            }
+            // _5 = &(*10)
+            RLValue::Rvalue(Rvalue::Ref(_, _, place)) => {
+                self.retrieve_upper_local_non_const(place.local, bb, candidates)
+            }
+            // In rust is:
+            //
+            // ```rust, ignore
+            // let mut x = test_own as fn(T);
+            // x = test as fn(T);
+            // x(T { _value: 10 });
+            // ```
+            //
+            // In MIR is translated as:
+            // ```rust, ignore
+            // bb0: {
+            //     _1 = test_own as fn(T) (PointerCoercion(ReifyFnPointer, AsCast));
+            //     _2 = test as fn(T) (PointerCoercion(ReifyFnPointer, AsCast));
+            //     _1 = move _2;
+            //     _4 = copy _1;
+            //     _5 = T { _value: const 10_i32 };
+            //     _3 = move _4(move _5) -> [return: bb1, unwind continue];
             // }
-            // res
+            // ```
+            RLValue::Rvalue(Rvalue::Cast(_, operand, _)) => match operand {
+                mir::Operand::Copy(place) => {
+                    self.retrieve_upper_local_non_const(place.local, bb, candidates)
+                }
+                mir::Operand::Move(place) => {
+                    self.retrieve_upper_local_non_const(place.local, bb, candidates)
+                }
+                _ => unreachable!(),
+            },
+            _ => unreachable!(),
         }
     }
 
@@ -387,7 +450,7 @@ where
         &self,
         const_operand: &mir::ConstOperand<'tcx>,
         analyzer: &Analyzer,
-    ) -> (DefId, CallKind) {
+    ) -> ((DefId, Option<Promoted>), CallKind) {
         match const_operand.const_ {
             mir::Const::Val(_, ty) => match ty.kind() {
                 ty::TyKind::FnDef(def_id, generic_args) => {
@@ -397,14 +460,14 @@ where
                         if krate_name == rustc_span::Symbol::intern("core") {
                             let fun_name = analyzer.tcx.def_path_str(*def_id);
                             if fun_name == "std::clone::Clone::clone" {
-                                return (*def_id, CallKind::Clone);
+                                return ((*def_id, None), CallKind::Clone);
                             }
                         }
                     }
 
                     // Check if the def_id is a method
                     if let Some(def_id) = analyzer.tcx.impl_of_method(*def_id) {
-                        return (def_id, CallKind::Method);
+                        return ((def_id, None), CallKind::Method);
                     }
 
                     // Interpret the generic_args as a closure
@@ -417,7 +480,7 @@ where
                                     analyzer.tcx.def_kind(*closure_def_id)
                                         == rustc_hir::def::DefKind::Closure
                                 );
-                                return (*closure_def_id, CallKind::Closure);
+                                return ((*closure_def_id, None), CallKind::Closure);
                             }
                         }
                     }
@@ -425,7 +488,7 @@ where
                     // Check if the def_id is a local function
                     if def_id.is_local() {
                         assert!(analyzer.tcx.def_kind(def_id) == rustc_hir::def::DefKind::Fn);
-                        return (*def_id, CallKind::Function);
+                        return ((*def_id, None), CallKind::Function);
                     }
 
                     // Check if the def_id is external
@@ -435,27 +498,30 @@ where
 
                         // Check if it is in the core crate
                         if krate_name == rustc_span::Symbol::intern("core") {
-                            return (*def_id, CallKind::Function);
+                            return ((*def_id, None), CallKind::Function);
                         }
 
                         // Check if it is in the std crate
                         if krate_name == rustc_span::Symbol::intern("std") {
-                            return (*def_id, CallKind::Function);
+                            return ((*def_id, None), CallKind::Function);
                         }
 
                         // Check if it is external but specified as dependency in the Cargo.toml
                         if !RUSTC_DEPENDENCIES.contains(&krate_name.as_str()) {
                             // From external crates we can inkove only functions
-                            return (*def_id, CallKind::Function);
+                            return ((*def_id, None), CallKind::Function);
                         }
                     }
 
                     // The def_id should not be handled
                     (
-                        DefId {
-                            krate: def_id.krate,
-                            index: DefIndex::from_usize(0),
-                        },
+                        (
+                            DefId {
+                                krate: def_id.krate,
+                                index: DefIndex::from_usize(0),
+                            },
+                            None,
+                        ),
                         CallKind::Unknown,
                     )
                 }
@@ -486,7 +552,7 @@ where
         const_value: mir::ConstValue,
         ty: ty::Ty<'tcx>,
         analyzer: &Analyzer,
-    ) -> (DefId, CallKind) {
+    ) -> ((DefId, Option<Promoted>), CallKind) {
         match ty.kind() {
             ty::TyKind::FnDef(def_id, _generic_args) => {
                 self.def_id_as_fun_or_method(*def_id, analyzer)
@@ -548,17 +614,21 @@ where
         }
     }
 
-    fn def_id_as_static_or_const(&self, def_id: DefId, analyzer: &Analyzer) -> (DefId, CallKind) {
+    fn def_id_as_static_or_const(
+        &self,
+        def_id: DefId,
+        analyzer: &Analyzer,
+    ) -> ((DefId, Option<Promoted>), CallKind) {
         if analyzer.tcx.is_static(def_id) {
             let mutability = analyzer.tcx.static_mutability(def_id);
             assert!(matches!(
                 analyzer.tcx.def_kind(def_id),
                 rustc_hir::def::DefKind::Static { .. }
             ));
-            return (def_id, CallKind::from(mutability.unwrap()));
+            return ((def_id, None), CallKind::from(mutability.unwrap()));
         }
         assert!(analyzer.tcx.def_kind(def_id) == rustc_hir::def::DefKind::Const);
-        (def_id, CallKind::Const)
+        ((def_id, None), CallKind::Const)
     }
 
     fn alloc_id_as_static(
@@ -566,26 +636,30 @@ where
         alloc_id: mir::interpret::AllocId,
         mutability: &ty::Mutability,
         analyzer: &Analyzer,
-    ) -> (DefId, CallKind) {
+    ) -> ((DefId, Option<Promoted>), CallKind) {
         if let GlobalAlloc::Static(def_id) = analyzer.tcx.global_alloc(alloc_id) {
             assert!(matches!(
                 analyzer.tcx.def_kind(def_id),
                 rustc_hir::def::DefKind::Static { .. }
             ));
-            return (def_id, CallKind::from(*mutability));
+            return ((def_id, None), CallKind::from(*mutability));
         }
         unreachable!()
     }
 
-    fn def_id_as_fun_or_method(&self, def_id: DefId, analyzer: &Analyzer) -> (DefId, CallKind) {
+    fn def_id_as_fun_or_method(
+        &self,
+        def_id: DefId,
+        analyzer: &Analyzer,
+    ) -> ((DefId, Option<Promoted>), CallKind) {
         if let Some(def_id) = analyzer.tcx.impl_of_method(def_id) {
             assert!(matches!(
                 analyzer.tcx.def_kind(def_id),
                 rustc_hir::def::DefKind::Impl { .. }
             ));
-            return (def_id, CallKind::Method);
+            return ((def_id, None), CallKind::Method);
         }
         assert!(analyzer.tcx.def_kind(def_id) == rustc_hir::def::DefKind::Fn);
-        (def_id, CallKind::Function)
+        ((def_id, None), CallKind::Function)
     }
 }

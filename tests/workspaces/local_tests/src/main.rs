@@ -242,6 +242,10 @@ fn main() {
     // let t = TEST_LAMBDA_C;
     // t();
 
+    // TODO
+    let t = &TEST_LAMBDA_C;
+    t();
+
     // if test_static() {
     //     if test_static2() {
     //         println!("Test passed");
@@ -260,4 +264,30 @@ fn main() {
         f_call = test_static2;
     }
     f_call();
+}
+
+struct T {
+    _value: i32,
+}
+
+fn main2() {
+    let dummy = 10;
+    let call_f: &fn(T);
+    let x = T { _value: 10 };
+
+    if dummy == 10 {
+        call_f = &(test as fn(T));
+    } else {
+        call_f = &(test2 as fn(T));
+    }
+
+    call_f(x);
+}
+
+fn test(t: T) {
+    let _ = t;
+}
+
+fn test2(t: T) {
+    let _ = t;
 }

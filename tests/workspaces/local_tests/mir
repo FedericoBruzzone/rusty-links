@@ -200,38 +200,152 @@ const test_static2::promoted[0]: &[char; 5] = {
 
 fn main() -> () {
     let mut _0: ();
-    let mut _2: i32;
-    let _3: bool;
-    let mut _4: fn() -> bool;
+    let _1: &fn();
+    let _2: ();
+    let mut _3: fn();
+    let mut _5: i32;
+    let _6: bool;
+    let mut _7: fn() -> bool;
     scope 1 {
-        debug x => const 10_i32;
-        let _1: fn() -> bool;
+        debug t => _1;
         scope 2 {
-            debug f_call => _1;
+            debug x => const 10_i32;
+            let _4: fn() -> bool;
+            scope 3 {
+                debug f_call => _4;
+            }
         }
     }
 
     bb0: {
-        _2 = const 10_i32;
-        switchInt(move _2) -> [10: bb1, otherwise: bb2];
+        _1 = const main::promoted[0];
+        _3 = copy (*_1);
+        _2 = move _3() -> [return: bb1, unwind continue];
     }
 
     bb1: {
-        _1 = test_static as fn() -> bool (PointerCoercion(ReifyFnPointer, Implicit));
+        _5 = const 10_i32;
+        switchInt(move _5) -> [10: bb2, otherwise: bb3];
+    }
+
+    bb2: {
+        _4 = test_static as fn() -> bool (PointerCoercion(ReifyFnPointer, Implicit));
+        goto -> bb4;
+    }
+
+    bb3: {
+        _4 = test_static2 as fn() -> bool (PointerCoercion(ReifyFnPointer, Implicit));
+        goto -> bb4;
+    }
+
+    bb4: {
+        _7 = copy _4;
+        _6 = move _7() -> [return: bb5, unwind continue];
+    }
+
+    bb5: {
+        return;
+    }
+}
+
+const main::promoted[0]: &fn() = {
+    let mut _0: &fn();
+    let mut _1: fn();
+
+    bb0: {
+        _1 = const TEST_LAMBDA_C;
+        _0 = &_1;
+        return;
+    }
+}
+
+fn main2() -> () {
+    let mut _0: ();
+    let mut _3: i32;
+    let _4: &fn(T);
+    let _5: &fn(T);
+    let _6: ();
+    let mut _7: fn(T);
+    scope 1 {
+        debug dummy => const 10_i32;
+        let _1: &fn(T);
+        scope 2 {
+            debug call_f => _1;
+            let _2: T;
+            scope 3 {
+                debug x => _2;
+            }
+        }
+    }
+
+    bb0: {
+        _2 = T { _value: const 10_i32 };
+        _3 = const 10_i32;
+        switchInt(move _3) -> [10: bb1, otherwise: bb2];
+    }
+
+    bb1: {
+        _4 = const main2::promoted[0];
+        _1 = copy _4;
         goto -> bb3;
     }
 
     bb2: {
-        _1 = test_static2 as fn() -> bool (PointerCoercion(ReifyFnPointer, Implicit));
+        _5 = const main2::promoted[1];
+        _1 = copy _5;
         goto -> bb3;
     }
 
     bb3: {
-        _4 = copy _1;
-        _3 = move _4() -> [return: bb4, unwind continue];
+        _7 = copy (*_1);
+        _6 = move _7(move _2) -> [return: bb4, unwind continue];
     }
 
     bb4: {
+        return;
+    }
+}
+
+const main2::promoted[0]: &fn(T) = {
+    let mut _0: &fn(T);
+    let mut _1: fn(T);
+
+    bb0: {
+        _1 = test as fn(T) (PointerCoercion(ReifyFnPointer, AsCast));
+        _0 = &_1;
+        return;
+    }
+}
+
+const main2::promoted[1]: &fn(T) = {
+    let mut _0: &fn(T);
+    let mut _1: fn(T);
+
+    bb0: {
+        _1 = test2 as fn(T) (PointerCoercion(ReifyFnPointer, AsCast));
+        _0 = &_1;
+        return;
+    }
+}
+
+fn test(_1: T) -> () {
+    debug t => _1;
+    let mut _0: ();
+    scope 1 {
+    }
+
+    bb0: {
+        return;
+    }
+}
+
+fn test2(_1: T) -> () {
+    debug t => _1;
+    let mut _0: ();
+    scope 1 {
+    }
+
+    bb0: {
         return;
     }
 }

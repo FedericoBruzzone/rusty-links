@@ -7,6 +7,7 @@ use crate::analysis::utils::TextMod;
 use rustc_hash::FxHashSet;
 use rustc_middle::mir;
 use rustc_middle::mir::visit::Visitor;
+use rustc_middle::mir::Promoted;
 use rustc_middle::mir::Rvalue;
 use rustc_middle::ty;
 use rustc_span::def_id::DefId;
@@ -56,7 +57,7 @@ where
     /// The entry point of the visitor.
     /// It visits the local_def_id and the body of the function.
     pub fn visit_local_def_id(&mut self, local_def_id: LocalDefId, body: &'a mir::Body<'tcx>) {
-        let _ = self.add_node_if_needed(local_def_id.to_def_id());
+        let _ = self.add_node_if_needed((local_def_id.to_def_id(), None));
 
         self.ctx.current_local_def_id = Some(local_def_id.to_def_id());
 
@@ -110,7 +111,7 @@ where
         self.ctx.map_bb_to_map_place_rlvalue = rustc_hash::FxHashMap::default();
 
         // Clear map_bb_used_places
-        self.ctx.map_bb_used_places = rustc_hash::FxHashMap::default();
+        self.ctx.map_bb_used_locals = rustc_hash::FxHashMap::default();
 
         // Clear current_local_def_id
         self.ctx.current_local_def_id = None;
@@ -186,14 +187,15 @@ where
     /// The edge is weighted by the arguments of the function call.
     /// The `to_def_id` is the def_id of the function that is called.
     /// Abstractly, the `from_def_id` is the def_id of the current visited function.
-    fn add_edge(&mut self, to_def_id: DefId, arg_weights: Vec<f32>) {
+    fn add_edge(&mut self, to_def_id: (DefId, Option<Promoted>), arg_weights: Vec<f32>) {
         log::debug!(
             "Adding an edge between the current visited function ({:?}) and the function that is called ({:?}) with the arguments: {:?}",
             self.ctx.current_local_def_id.unwrap(),
             to_def_id,
             arg_weights
         );
-        let fun_caller = self.ctx.rl_graph_index_map[&self.ctx.current_local_def_id.unwrap()];
+        let fun_caller =
+            self.ctx.rl_graph_index_map[&(self.ctx.current_local_def_id.unwrap(), None)];
         let fun_callee = self.add_node_if_needed(to_def_id);
         let edge = RLEdge::create(arg_weights);
         self.rl_graph.rl_add_edge(fun_caller, fun_callee, edge);
@@ -205,11 +207,11 @@ where
     /// It can be used also when an edge should be added between the current
     /// visited function and another function, calling it with the def_id of
     /// the called function.
-    fn add_node_if_needed(&mut self, def_id: DefId) -> G::Index {
+    fn add_node_if_needed(&mut self, def_id: (DefId, Option<Promoted>)) -> G::Index {
         if let std::collections::hash_map::Entry::Vacant(entry) =
             self.ctx.rl_graph_index_map.entry(def_id)
         {
-            let node = RLNode::create(def_id);
+            let node = RLNode::create(def_id.0, def_id.1);
             let index = self.rl_graph.rl_add_node(node);
             entry.insert(index);
         }
@@ -253,11 +255,11 @@ where
             .statements
             .iter()
             .flat_map(|x: &mir::Statement<'tcx>| match &x.kind {
-                mir::StatementKind::Assign(box_assign) => Some(box_assign.0),
+                mir::StatementKind::Assign(box_assign) => Some(box_assign.0.local),
                 _ => None,
             })
             .collect::<FxHashSet<_>>();
-        self.ctx.map_bb_used_places.insert(block, all_places);
+        self.ctx.map_bb_used_locals.insert(block, all_places);
 
         // Check if we should restore the map_place_rlvalue because we are coming from a switch
         // and the current `block` was a possibile target (a branch candidate).
@@ -382,13 +384,15 @@ where
                     self.ctx.map_place_rlvalue.clone(),
                 );
 
-                let resolved_call =
-                    self.ctx
-                        .resolve_call_def_id(func, &self.ctx.map_place_rlvalue, self.analyzer);
+                let resolved_call = self.ctx.resolve_call_def_id(
+                    func,
+                    self.analyzer,
+                    self.ctx.current_basic_block.unwrap(),
+                );
 
                 // It is not important what branch is taken.
                 // We need the vector only to create edges between the caller and the callee.
-                let (def_id, call_kind) = &resolved_call[0];
+                let ((def_id, _), call_kind) = &resolved_call[0];
 
                 // Update the map_place_rvalue with the destination of the call.
                 match call_kind {
@@ -425,12 +429,12 @@ where
                     CallKind::Unknown => unreachable!(),
                 }
 
-                for (def_id, call_kind) in resolved_call {
+                for ((def_id, promoted), call_kind) in resolved_call {
                     if call_kind != CallKind::Unknown && call_kind != CallKind::Clone {
                         let args = self.update_args(args, &call_kind);
                         let arg_weights =
                             RLWeightResolver::new(&self.ctx).resolve_arg_weights(&call_kind, &args);
-                        self.add_edge(def_id, arg_weights);
+                        self.add_edge((def_id, promoted), arg_weights);
                     }
                 }
 

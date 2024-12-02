@@ -1,4 +1,5 @@
 use rustc_hir::def_id::{CrateNum, DefIndex};
+use rustc_middle::mir::Promoted;
 use rustc_span::def_id::DefId;
 use serde::{Deserialize, Serialize};
 
@@ -11,8 +12,9 @@ pub trait RLGraphEdge {
 
 /// The `RLGraphNode` trait represents a node in a graph.
 pub trait RLGraphNode {
-    fn create(def_id: DefId) -> Self;
+    fn create(def_id: DefId, promoted: Option<Promoted>) -> Self;
     fn def_id_str(&self) -> String;
+    fn promoted(&self) -> Option<Promoted>;
 }
 
 #[allow(unused)]
@@ -39,6 +41,7 @@ pub trait RLGraph {
 #[derive(Debug, Clone)]
 pub struct RLNode {
     def_id: DefId,
+    promoted: Option<Promoted>,
     def_id_str: String,
 }
 
@@ -62,13 +65,21 @@ impl PartialEq for RLNode {
 }
 
 impl RLGraphNode for RLNode {
-    fn create(def_id: DefId) -> Self {
+    fn create(def_id: DefId, promoted: Option<Promoted>) -> Self {
         let def_id_str = format!("{:?}", def_id);
-        Self { def_id, def_id_str }
+        Self {
+            def_id,
+            promoted,
+            def_id_str,
+        }
     }
 
     fn def_id_str(&self) -> String {
         self.def_id_str.clone()
+    }
+
+    fn promoted(&self) -> Option<Promoted> {
+        self.promoted
     }
 }
 
@@ -77,10 +88,15 @@ impl Serialize for RLNode {
     where
         S: serde::Serializer,
     {
+        let promoted = match self.promoted {
+            Some(promoted) => promoted.as_u32(),
+            None => u32::MAX,
+        };
         serializer.serialize_str(&format!(
-            "{}:{}:{}",
+            "{}:{}:{}:{}",
             self.def_id.krate.as_u32(),
             self.def_id.index.as_u32(),
+            promoted,
             self.def_id_str
         ))
     }
@@ -95,14 +111,19 @@ impl<'de> Deserialize<'de> for RLNode {
         let parts: Vec<&str> = s.split(':').collect();
         let krate = parts[0].parse().unwrap();
         let index = parts[1].parse().unwrap();
+        let promoted = match parts[2] {
+            "4294967295" => None,
+            _ => Some(Promoted::from_u32(parts[2].parse().unwrap())),
+        };
         // We need to join the rest of the parts because the def_id_str can contain ':' characters.
         // And remove the last character because it is a trailing '"' character.
-        let def_id_str = parts[2..].join(":");
+        let def_id_str = parts[3..].join(":");
         Ok(Self {
             def_id: DefId {
                 krate: CrateNum::from_u32(krate),
                 index: DefIndex::from_u32(index),
             },
+            promoted,
             def_id_str,
         })
     }
