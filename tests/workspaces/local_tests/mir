@@ -203,11 +203,16 @@ fn main() -> () {
     let mut _2: i32;
     let _3: bool;
     let mut _4: fn() -> bool;
+    let _6: ();
     scope 1 {
         debug x => const 10_i32;
         let _1: fn() -> bool;
         scope 2 {
             debug f_call => _1;
+            let _5: T;
+            scope 3 {
+                debug t => _5;
+            }
         }
     }
 
@@ -232,90 +237,53 @@ fn main() -> () {
     }
 
     bb4: {
+        _5 = T { _value: const 10_i32 };
+        _6 = T::test_method(move _5) -> [return: bb5, unwind continue];
+    }
+
+    bb5: {
+        return;
+    }
+}
+
+fn <impl at src/main.rs:275:1: 275:7>::test_method(_1: T) -> () {
+    debug self => _1;
+    let mut _0: ();
+    scope 1 {
+    }
+
+    bb0: {
+        return;
+    }
+}
+
+fn <impl at src/main.rs:309:1: 309:7>::test(_1: &mut T) -> () {
+    debug self => _1;
+    let mut _0: ();
+    scope 1 {
+    }
+
+    bb0: {
         return;
     }
 }
 
 fn main2() -> () {
     let mut _0: ();
-    let _1: {closure@src/main.rs:273:18: 273:20};
+    let mut _1: T;
     let _2: ();
-    let mut _3: &{closure@src/main.rs:273:18: 273:20};
+    let mut _3: &mut T;
     scope 1 {
-        debug lambda => const ZeroSized: {closure@src/main.rs:273:18: 273:20};
+        debug x => _1;
     }
 
     bb0: {
-        _3 = &_1;
-        _2 = <{closure@src/main.rs:273:18: 273:20} as std::ops::Fn<()>>::call(move _3, const ()) -> [return: bb1, unwind continue];
+        _1 = T { _value: const 10_i32 };
+        _3 = &mut _1;
+        _2 = T::test(copy _3) -> [return: bb1, unwind continue];
     }
 
     bb1: {
-        return;
-    }
-}
-
-fn main2::{closure#0}(_1: &{closure@src/main.rs:273:18: 273:20}) -> () {
-    let mut _0: ();
-    let mut _4: i32;
-    let _5: ();
-    let mut _6: fn(T);
-    scope 1 {
-        debug dummy => const 10_i32;
-        let _2: fn(T);
-        scope 2 {
-            debug call_f => _2;
-            let _3: T;
-            scope 3 {
-                debug x => _3;
-            }
-        }
-    }
-
-    bb0: {
-        _3 = T { _value: const 10_i32 };
-        _4 = const 10_i32;
-        switchInt(move _4) -> [10: bb1, otherwise: bb2];
-    }
-
-    bb1: {
-        _2 = test as fn(T) (PointerCoercion(ReifyFnPointer, Implicit));
-        goto -> bb3;
-    }
-
-    bb2: {
-        _2 = test2 as fn(T) (PointerCoercion(ReifyFnPointer, Implicit));
-        goto -> bb3;
-    }
-
-    bb3: {
-        _6 = copy _2;
-        _5 = move _6(move _3) -> [return: bb4, unwind continue];
-    }
-
-    bb4: {
-        return;
-    }
-}
-
-fn test(_1: T) -> () {
-    debug t => _1;
-    let mut _0: ();
-    scope 1 {
-    }
-
-    bb0: {
-        return;
-    }
-}
-
-fn test2(_1: T) -> () {
-    debug t => _1;
-    let mut _0: ();
-    scope 1 {
-    }
-
-    bb0: {
         return;
     }
 }
@@ -334,17 +302,15 @@ digraph {
     11 [ label="i11: DefId(2:2969 ~ core[47af]::cmp::PartialEq::eq) - None"]
     12 [ label="i12: DefId(0:14 ~ local_tests[65b4]::test_static2) - None"]
     13 [ label="i13: DefId(0:15 ~ local_tests[65b4]::main) - None"]
-    14 [ label="i14: DefId(0:18 ~ local_tests[65b4]::main2) - None"]
-    15 [ label="i15: DefId(0:19 ~ local_tests[65b4]::main2::{closure#0}) - None"]
-    16 [ label="i16: DefId(0:20 ~ local_tests[65b4]::test) - None"]
-    17 [ label="i17: DefId(0:21 ~ local_tests[65b4]::test2) - None"]
+    14 [ label="i14: DefId(0:17 ~ local_tests[65b4]::{impl#0}::test_method) - None"]
+    15 [ label="i15: DefId(0:21 ~ local_tests[65b4]::{impl#1}::test) - None"]
+    16 [ label="i16: DefId(0:22 ~ local_tests[65b4]::main2) - None"]
     10 -> 11 [ label="2.00"]
     10 -> 11 [ label="2.00"]
     12 -> 11 [ label="2.00"]
     13 -> 10 [ label="-0.00"]
     13 -> 12 [ label="-0.00"]
-    14 -> 15 [ label="-0.00"]
-    15 -> 16 [ label="1.00"]
-    15 -> 17 [ label="1.00"]
+    13 -> 14 [ label="1.00"]
+    16 -> 15 [ label="1.00"]
 }
 

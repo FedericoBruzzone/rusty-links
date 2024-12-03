@@ -28,14 +28,15 @@ impl From<ty::Mutability> for CallKind {
     }
 }
 
+#[allow(dead_code)]
 /// RlRy is a struct that represents the type of a place (local variable).
 /// It is used to weight the edges of the graph.
 /// At the beginning, all the places are assigned to its RlTy, since
 /// all the type are known in the local_decls of the MIR.
 pub struct RLTy<'tcx, 'a> {
-    _kind: &'a ty::TyKind<'tcx>,
-    _mutability: ty::Mutability,
-    _user_binding: Option<mir::BindingForm<'tcx>>,
+    kind: &'a ty::TyKind<'tcx>,
+    mutability: ty::Mutability,
+    user_binding: Option<mir::BindingForm<'tcx>>,
 }
 
 impl<'tcx, 'a> RLTy<'tcx, 'a> {
@@ -45,9 +46,9 @@ impl<'tcx, 'a> RLTy<'tcx, 'a> {
         user_binding: Option<mir::BindingForm<'tcx>>,
     ) -> Self {
         Self {
-            _kind: kind,
-            _mutability: mutability,
-            _user_binding: user_binding,
+            kind,
+            mutability,
+            user_binding,
         }
     }
 }

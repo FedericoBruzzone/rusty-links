@@ -12,7 +12,7 @@ mod test_snippets_simple_call_method_ref_self {
             &std::fs::read_to_string(format!("{FOLDER}/call_method_ref_self_directly.rs")).unwrap();
         let (output, _) = run_with_cargo_bin_and_snippet(snippet, &["--print-rl-graph"])?;
 
-        assert!(output.contains("1 -> 2")); // main -> T::test
+        assert!(output.contains("1 -> 0")); // main -> T::test
 
         Ok(())
     }
@@ -23,7 +23,7 @@ mod test_snippets_simple_call_method_ref_self {
             &std::fs::read_to_string(format!("{FOLDER}/call_method_ref_self_alias.rs")).unwrap();
         let (output, _) = run_with_cargo_bin_and_snippet(snippet, &["--print-rl-graph"])?;
 
-        assert!(output.contains("1 -> 2")); // main -> T::test
+        assert!(output.contains("1 -> 0")); // main -> T::test
 
         Ok(())
     }
@@ -35,7 +35,7 @@ mod test_snippets_simple_call_method_ref_self {
                 .unwrap();
         let (output, _) = run_with_cargo_bin_and_snippet(snippet, &["--print-rl-graph"])?;
 
-        assert!(output.contains("1 -> 2")); // main -> T::test
+        assert!(output.contains("1 -> 0")); // main -> T::test
 
         Ok(())
     }
@@ -50,7 +50,7 @@ mod test_snippets_simple_call_method_ref_self {
         let (output, _) = run_with_cargo_bin_and_snippet(snippet, &["--print-rl-graph"])?;
 
         assert!(output.contains("1 -> 2")); // main -> closure
-        assert!(output.contains("2 -> 3")); // closure -> T::test
+        assert!(output.contains("2 -> 0")); // closure -> T::test
 
         Ok(())
     }
@@ -64,7 +64,7 @@ mod test_snippets_simple_call_method_ref_self {
         let (output, _) = run_with_cargo_bin_and_snippet(snippet, &["--print-rl-graph"])?;
 
         assert!(output.contains("1 -> 2")); // main -> closure
-        assert!(output.contains("2 -> 3")); // closure -> T::test
+        assert!(output.contains("2 -> 0")); // closure -> T::test
 
         Ok(())
     }
@@ -79,7 +79,7 @@ mod test_snippets_simple_call_method_ref_self {
         let (output, _) = run_with_cargo_bin_and_snippet(snippet, &["--print-rl-graph"])?;
 
         assert!(output.contains("1 -> 2")); // main -> closure
-        assert!(output.contains("2 -> 3")); // closure -> T::test
+        assert!(output.contains("2 -> 0")); // closure -> T::test
 
         Ok(())
     }

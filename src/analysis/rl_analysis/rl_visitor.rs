@@ -387,11 +387,6 @@ where
 
                 let resolved_call = RLCallResolver::new(&self.ctx, self.analyzer)
                     .resolve_call_def_id(func, self.ctx.current_basic_block.unwrap());
-                // self.ctx.resolve_call_def_id(
-                //     func,
-                //     self.analyzer,
-                //     self.ctx.current_basic_block.unwrap(),
-                // );
 
                 // It is not important what branch is taken.
                 // We need the vector only to create edges between the caller and the callee.
@@ -441,9 +436,18 @@ where
                     }
                 }
 
-                // It assume that the target is alyays Some.
-                // From the docs it is not clear when it can be None.
-                self.ctx.add_current_bb_as_parent_of((*target).unwrap());
+                // An example in which the `target` is `None` is the following:
+                // ```rust,ignore
+                //     ...
+                //
+                //     bb26: {
+                //         _45 = core::panicking::panic_fmt(move _46) -> unwind continue;
+                //     }
+                // }
+                // ```
+                if let Some(target) = target {
+                    self.ctx.add_current_bb_as_parent_of(*target);
+                }
 
                 self.visit_place(
                     destination,

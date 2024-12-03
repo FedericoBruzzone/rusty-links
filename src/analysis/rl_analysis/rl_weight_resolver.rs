@@ -53,6 +53,7 @@ where
     fn resolve_mut_static(&self, args: &'a [mir::Operand<'tcx>]) -> Vec<f32> {
         self.resolve_args(args)
     }
+
     fn resolve_method_weights(&self, args: &'a [mir::Operand<'tcx>]) -> Vec<f32> {
         let self_weight = self.resolve_self(&args[0]);
         let mut arg_weights = self.resolve_args(&args[1..]);

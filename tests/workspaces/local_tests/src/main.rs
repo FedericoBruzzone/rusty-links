@@ -263,10 +263,19 @@ fn main() {
         f_call = test_static2;
     }
     f_call();
+
+    let t = T { _value: 10 };
+    t.test_method();
 }
 
 struct T {
     _value: i32,
+}
+
+impl T {
+    fn test_method(self) {
+        let _ = self;
+    }
 }
 
 fn main2() {

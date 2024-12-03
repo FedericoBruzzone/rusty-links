@@ -298,8 +298,33 @@ where
                     }
 
                     // Check if the def_id is a method
-                    if let Some(def_id) = self.analyzer.tcx.impl_of_method(*def_id) {
-                        return ((def_id, None), CallKind::Method);
+                    if let Some(_impl_def_id) = self.analyzer.tcx.impl_of_method(*def_id) {
+                        return ((*def_id, None), CallKind::Method);
+                    }
+
+                    if self.analyzer.tcx.is_const_default_method(*def_id) {
+                        return ((*def_id, None), CallKind::Method);
+                    }
+
+                    if self
+                        .analyzer
+                        .tcx
+                        .impl_method_has_trait_impl_trait_tys(*def_id)
+                    {
+                        return ((*def_id, None), CallKind::Method);
+                    }
+
+                    // if let Some(trait_def_id) = self.analyzer.tcx.trait_of_item(*def_id) {
+                    //     let assoc_items = self.analyzer.tcx.associated_items(trait_def_id);
+                    //     for assoc_item in assoc_items.in_definition_order() {
+                    //         if assoc_item.fn_has_self_parameter && assoc_item.def_id == *def_id {
+                    //             return ((*def_id, None), CallKind::Method);
+                    //         }
+                    //     }
+                    // }
+
+                    if self.analyzer.tcx.is_closure_like(*def_id) {
+                        return ((*def_id, None), CallKind::Closure);
                     }
 
                     // Interpret the generic_args as a closure
@@ -338,9 +363,13 @@ where
                             return ((*def_id, None), CallKind::Function);
                         }
 
+                        // Check if it is in the alloc crate
+                        if krate_name == rustc_span::Symbol::intern("alloc") {
+                            return ((*def_id, None), CallKind::Function);
+                        }
+
                         // Check if it is external but specified as dependency in the Cargo.toml
                         if !RUSTC_DEPENDENCIES.contains(&krate_name.as_str()) {
-                            // From external crates we can inkove only functions
                             return ((*def_id, None), CallKind::Function);
                         }
                     }
