@@ -205,28 +205,28 @@
 // ====================================================================================
 
 // static HELLO: &'static str = "Hello";
-static HELLO: [char; 5] = ['H', 'e', 'l', 'l', 'o'];
-const HELLO_C: [char; 5] = ['H', 'e', 'l', 'l', 'o'];
+// static HELLO: [char; 5] = ['H', 'e', 'l', 'l', 'o'];
+// const HELLO_C: [char; 5] = ['H', 'e', 'l', 'l', 'o'];
 
-static mut TEST_LAMBDA_MUT: fn() = || {
-    let _ = 10;
-};
-static TEST_LAMBDA: fn() = || {
-    let _ = 10;
-};
-const TEST_LAMBDA_C: fn() = || {
-    let _ = 10;
-};
+// static mut TEST_LAMBDA_MUT: fn() = || {
+//     let _ = 10;
+// };
+// static TEST_LAMBDA: fn() = || {
+//     let _ = 10;
+// };
+// const TEST_LAMBDA_C: fn() = || {
+//     let _ = 10;
+// };
 
-fn test_static() -> bool {
-    // HELLO == "Hello"
-    HELLO == ['H', 'e', 'l', 'l', 'o'] && HELLO == HELLO_C
-}
-fn test_static2() -> bool {
-    HELLO == HELLO_C
-}
+// fn test_static() -> bool {
+//     // HELLO == "Hello"
+//     HELLO == ['H', 'e', 'l', 'l', 'o'] && HELLO == HELLO_C
+// }
+// fn test_static2() -> bool {
+//     HELLO == HELLO_C
+// }
 
-fn main() {
+// fn main() {
     // let t = TEST_LAMBDA;
     // t();
 
@@ -244,29 +244,7 @@ fn main() {
 
     // let t = &TEST_LAMBDA_C;
     // t();
-
-    // if test_static() {
-    //     if test_static2() {
-    //         println!("Test passed");
-    //     } else {
-    //         println!("Test failed");
-    //     }
-    // } else {
-    //     println!("Test failed");
-    // }
-
-    let x = 10;
-    let f_call: fn() -> bool;
-    if x == 10 {
-        f_call = test_static;
-    } else {
-        f_call = test_static2;
-    }
-    f_call();
-
-    let t = T { _value: 10 };
-    t.test_method();
-}
+// }
 
 struct T {
     _value: i32,
@@ -276,29 +254,12 @@ impl T {
     fn test_method(self) {
         let _ = self;
     }
+    fn test_fun() {
+    }
 }
 
-fn main2() {
-    let lambda = || {
-        let dummy = 10;
-        let call_f: fn(T);
-        let x = T { _value: 10 };
-        if dummy == 10 {
-            call_f = test;
-        } else {
-            call_f = test2;
-        }
-
-        call_f(x);
-    };
-    lambda();
-}
-
-fn test(t: T) {
-    let _ = t;
-}
-
-fn test2(t: T) {
-    let _ = t;
+fn main() {
+    T { _value: 10 }.test_method();
+    T::test_fun();
 }
 

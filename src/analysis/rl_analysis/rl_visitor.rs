@@ -359,8 +359,6 @@ where
         } = terminator;
 
         match kind {
-            // We can analyze the `call_source` field of the `Call` variant
-            // to know if it a `Normal` call.
             mir::TerminatorKind::Call {
                 func,
                 args,
@@ -380,6 +378,19 @@ where
                 );
                 log::trace!("{}", message);
 
+                // Save the map_place_rlvalue in the map_bb_to_map_place_rlvalue
+                // We need to save it because during the `resolve_call_def_id`
+                // we need to find the upper local that is used in the call.
+                // For example:
+                // ```
+                // _2 = T::test;
+                // _3 = move _2;
+                // _1 = _3() -> bb1;
+                // ```
+                // In this case, we need to find the upper local of `_3` that is `_2`.
+                // Since when we visit the `Call` terminator we don't have already
+                // saved the state in the `map_bb_to_map_place_rlvalue`, we need to save it.
+                // Note that the state is re-saved at the end of the `visit_basic_block_data`.
                 self.ctx.map_bb_to_map_place_rlvalue.insert(
                     self.ctx.current_basic_block.unwrap(),
                     self.ctx.map_place_rlvalue.clone(),

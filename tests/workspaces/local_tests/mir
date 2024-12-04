@@ -1,55 +1,7 @@
 // WARNING: This output format is intended for human consumers only
 // and is subject to change without notice. Knock yourself out.
-static HELLO: [char; 5] = {
-    let mut _0: [char; 5];
-
-    bb0: {
-        _0 = [const 'H', const 'e', const 'l', const 'l', const 'o'];
-        return;
-    }
-}
-
-HELLO::{constant#0}: usize = {
-    let mut _0: usize;
-
-    bb0: {
-        _0 = const 5_usize;
-        return;
-    }
-}
-
-const HELLO_C: [char; 5] = {
-    let mut _0: [char; 5];
-
-    bb0: {
-        _0 = [const 'H', const 'e', const 'l', const 'l', const 'o'];
-        return;
-    }
-}
-
-HELLO_C::{constant#0}: usize = {
-    let mut _0: usize;
-
-    bb0: {
-        _0 = const 5_usize;
-        return;
-    }
-}
-
-static mut TEST_LAMBDA_MUT: fn() = {
-    let mut _0: fn();
-    let mut _1: {closure@src/main.rs:211:36: 211:38};
-
-    bb0: {
-        StorageLive(_1);
-        _1 = {closure@src/main.rs:211:36: 211:38};
-        _0 = move _1 as fn() (PointerCoercion(ClosureFnPointer(Safe), Implicit));
-        StorageDead(_1);
-        return;
-    }
-}
-
-fn TEST_LAMBDA_MUT::{closure#0}(_1: &{closure@src/main.rs:211:36: 211:38}) -> () {
+fn <impl at src/main.rs:253:1: 253:7>::test_method(_1: T) -> () {
+    debug self => _1;
     let mut _0: ();
     scope 1 {
     }
@@ -59,258 +11,30 @@ fn TEST_LAMBDA_MUT::{closure#0}(_1: &{closure@src/main.rs:211:36: 211:38}) -> ()
     }
 }
 
-static TEST_LAMBDA: fn() = {
-    let mut _0: fn();
-    let mut _1: {closure@src/main.rs:214:28: 214:30};
-
-    bb0: {
-        StorageLive(_1);
-        _1 = {closure@src/main.rs:214:28: 214:30};
-        _0 = move _1 as fn() (PointerCoercion(ClosureFnPointer(Safe), Implicit));
-        StorageDead(_1);
-        return;
-    }
-}
-
-fn TEST_LAMBDA::{closure#0}(_1: &{closure@src/main.rs:214:28: 214:30}) -> () {
+fn <impl at src/main.rs:253:1: 253:7>::test_fun() -> () {
     let mut _0: ();
-    scope 1 {
-    }
 
     bb0: {
-        return;
-    }
-}
-
-const TEST_LAMBDA_C: fn() = {
-    let mut _0: fn();
-    let mut _1: {closure@src/main.rs:217:29: 217:31};
-
-    bb0: {
-        StorageLive(_1);
-        _1 = {closure@src/main.rs:217:29: 217:31};
-        _0 = move _1 as fn() (PointerCoercion(ClosureFnPointer(Safe), Implicit));
-        StorageDead(_1);
-        return;
-    }
-}
-
-fn TEST_LAMBDA_C::{closure#0}(_1: &{closure@src/main.rs:217:29: 217:31}) -> () {
-    let mut _0: ();
-    scope 1 {
-    }
-
-    bb0: {
-        return;
-    }
-}
-
-fn test_static() -> bool {
-    let mut _0: bool;
-    let mut _1: bool;
-    let mut _2: &[char; 5];
-    let mut _3: &[char; 5];
-    let mut _4: &[char; 5];
-    let mut _5: &[char; 5];
-
-    bb0: {
-        _2 = const {alloc1: &[char; 5]};
-        _3 = const test_static::promoted[1];
-        _1 = <[char; 5] as std::cmp::PartialEq>::eq(move _2, move _3) -> [return: bb1, unwind continue];
-    }
-
-    bb1: {
-        switchInt(move _1) -> [0: bb3, otherwise: bb2];
-    }
-
-    bb2: {
-        _4 = const {alloc1: &[char; 5]};
-        _5 = const test_static::promoted[0];
-        _0 = <[char; 5] as std::cmp::PartialEq>::eq(move _4, move _5) -> [return: bb4, unwind continue];
-    }
-
-    bb3: {
-        _0 = const false;
-        goto -> bb4;
-    }
-
-    bb4: {
-        return;
-    }
-}
-
-alloc1 (static: HELLO, size: 20, align: 4) {
-    0x00 │ 48 00 00 00 65 00 00 00 6c 00 00 00 6c 00 00 00 │ H...e...l...l...
-    0x10 │ 6f 00 00 00                                     │ o...
-}
-
-const test_static::promoted[0]: &[char; 5] = {
-    let mut _0: &[char; 5];
-    let mut _1: [char; 5];
-
-    bb0: {
-        _1 = const HELLO_C;
-        _0 = &_1;
-        return;
-    }
-}
-
-const test_static::promoted[1]: &[char; 5] = {
-    let mut _0: &[char; 5];
-    let mut _1: [char; 5];
-
-    bb0: {
-        _1 = [const 'H', const 'e', const 'l', const 'l', const 'o'];
-        _0 = &_1;
-        return;
-    }
-}
-
-fn test_static2() -> bool {
-    let mut _0: bool;
-    let mut _1: &[char; 5];
-    let mut _2: &[char; 5];
-
-    bb0: {
-        _1 = const {alloc1: &[char; 5]};
-        _2 = const test_static2::promoted[0];
-        _0 = <[char; 5] as std::cmp::PartialEq>::eq(move _1, move _2) -> [return: bb1, unwind continue];
-    }
-
-    bb1: {
-        return;
-    }
-}
-
-alloc1 (static: HELLO, size: 20, align: 4) {
-    0x00 │ 48 00 00 00 65 00 00 00 6c 00 00 00 6c 00 00 00 │ H...e...l...l...
-    0x10 │ 6f 00 00 00                                     │ o...
-}
-
-const test_static2::promoted[0]: &[char; 5] = {
-    let mut _0: &[char; 5];
-    let mut _1: [char; 5];
-
-    bb0: {
-        _1 = const HELLO_C;
-        _0 = &_1;
         return;
     }
 }
 
 fn main() -> () {
     let mut _0: ();
-    let mut _2: i32;
-    let _3: bool;
-    let mut _4: fn() -> bool;
-    let _6: ();
-    scope 1 {
-        debug x => const 10_i32;
-        let _1: fn() -> bool;
-        scope 2 {
-            debug f_call => _1;
-            let _5: T;
-            scope 3 {
-                debug t => _5;
-            }
-        }
-    }
+    let _1: ();
+    let mut _2: T;
+    let _3: ();
 
     bb0: {
-        _2 = const 10_i32;
-        switchInt(move _2) -> [10: bb1, otherwise: bb2];
+        _2 = T { _value: const 10_i32 };
+        _1 = T::test_method(move _2) -> [return: bb1, unwind continue];
     }
 
     bb1: {
-        _1 = test_static as fn() -> bool (PointerCoercion(ReifyFnPointer, Implicit));
-        goto -> bb3;
+        _3 = T::test_fun() -> [return: bb2, unwind continue];
     }
 
     bb2: {
-        _1 = test_static2 as fn() -> bool (PointerCoercion(ReifyFnPointer, Implicit));
-        goto -> bb3;
-    }
-
-    bb3: {
-        _4 = copy _1;
-        _3 = move _4() -> [return: bb4, unwind continue];
-    }
-
-    bb4: {
-        _5 = T { _value: const 10_i32 };
-        _6 = T::test_method(move _5) -> [return: bb5, unwind continue];
-    }
-
-    bb5: {
         return;
     }
 }
-
-fn <impl at src/main.rs:275:1: 275:7>::test_method(_1: T) -> () {
-    debug self => _1;
-    let mut _0: ();
-    scope 1 {
-    }
-
-    bb0: {
-        return;
-    }
-}
-
-fn <impl at src/main.rs:309:1: 309:7>::test(_1: &mut T) -> () {
-    debug self => _1;
-    let mut _0: ();
-    scope 1 {
-    }
-
-    bb0: {
-        return;
-    }
-}
-
-fn main2() -> () {
-    let mut _0: ();
-    let mut _1: T;
-    let _2: ();
-    let mut _3: &mut T;
-    scope 1 {
-        debug x => _1;
-    }
-
-    bb0: {
-        _1 = T { _value: const 10_i32 };
-        _3 = &mut _1;
-        _2 = T::test(copy _3) -> [return: bb1, unwind continue];
-    }
-
-    bb1: {
-        return;
-    }
-}
-digraph {
-    0 [ label="i0: DefId(0:3 ~ local_tests[65b4]::HELLO) - None"]
-    1 [ label="i1: DefId(0:4 ~ local_tests[65b4]::HELLO::{constant#0}) - None"]
-    2 [ label="i2: DefId(0:5 ~ local_tests[65b4]::HELLO_C) - None"]
-    3 [ label="i3: DefId(0:6 ~ local_tests[65b4]::HELLO_C::{constant#0}) - None"]
-    4 [ label="i4: DefId(0:7 ~ local_tests[65b4]::TEST_LAMBDA_MUT) - None"]
-    5 [ label="i5: DefId(0:8 ~ local_tests[65b4]::TEST_LAMBDA_MUT::{closure#0}) - None"]
-    6 [ label="i6: DefId(0:9 ~ local_tests[65b4]::TEST_LAMBDA) - None"]
-    7 [ label="i7: DefId(0:10 ~ local_tests[65b4]::TEST_LAMBDA::{closure#0}) - None"]
-    8 [ label="i8: DefId(0:11 ~ local_tests[65b4]::TEST_LAMBDA_C) - None"]
-    9 [ label="i9: DefId(0:12 ~ local_tests[65b4]::TEST_LAMBDA_C::{closure#0}) - None"]
-    10 [ label="i10: DefId(0:13 ~ local_tests[65b4]::test_static) - None"]
-    11 [ label="i11: DefId(2:2969 ~ core[47af]::cmp::PartialEq::eq) - None"]
-    12 [ label="i12: DefId(0:14 ~ local_tests[65b4]::test_static2) - None"]
-    13 [ label="i13: DefId(0:15 ~ local_tests[65b4]::main) - None"]
-    14 [ label="i14: DefId(0:17 ~ local_tests[65b4]::{impl#0}::test_method) - None"]
-    15 [ label="i15: DefId(0:21 ~ local_tests[65b4]::{impl#1}::test) - None"]
-    16 [ label="i16: DefId(0:22 ~ local_tests[65b4]::main2) - None"]
-    10 -> 11 [ label="2.00"]
-    10 -> 11 [ label="2.00"]
-    12 -> 11 [ label="2.00"]
-    13 -> 10 [ label="-0.00"]
-    13 -> 12 [ label="-0.00"]
-    13 -> 14 [ label="1.00"]
-    16 -> 15 [ label="1.00"]
-}
-
