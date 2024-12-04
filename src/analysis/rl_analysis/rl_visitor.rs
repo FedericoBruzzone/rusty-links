@@ -100,11 +100,11 @@ where
             self.ctx.map_place_ty.remove(&local);
         }
 
-        log::debug!("The map_bb_parent: {:?}", self.ctx.map_parent_bb);
+        log::trace!("The map_bb_parent: {:?}", self.ctx.map_parent_bb);
         // Clear map_parent_bb
         self.ctx.map_parent_bb = rustc_hash::FxHashMap::default();
 
-        log::debug!(
+        log::trace!(
             "The map_bb_to_map_place_rlvalue: {:?}",
             self.ctx.map_bb_to_map_place_rlvalue
         );
