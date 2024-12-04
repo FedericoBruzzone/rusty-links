@@ -55,8 +55,17 @@ where
     }
 
     fn resolve_method_weights(&self, args: &'a [mir::Operand<'tcx>]) -> Vec<f32> {
+        // This is strange, but I found ways in which a method has zero arguments.
+        // This could be a bug in the compiler, but I'm not sure.
+        if args.is_empty() {
+            return Vec::new();
+        }
         let self_weight = self.resolve_self(&args[0]);
-        let mut arg_weights = self.resolve_args(&args[1..]);
+        let mut arg_weights = if args.len() > 1 {
+            self.resolve_args(&args[1..])
+        } else {
+            Vec::new()
+        };
         arg_weights.insert(0, self_weight);
         arg_weights
     }

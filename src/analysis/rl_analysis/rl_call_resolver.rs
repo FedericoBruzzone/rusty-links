@@ -297,32 +297,6 @@ where
                         }
                     }
 
-                    // Check if the def_id is a method
-                    if let Some(_impl_def_id) = self.analyzer.tcx.impl_of_method(*def_id) {
-                        return ((*def_id, None), CallKind::Method);
-                    }
-
-                    if self.analyzer.tcx.is_const_default_method(*def_id) {
-                        return ((*def_id, None), CallKind::Method);
-                    }
-
-                    if self
-                        .analyzer
-                        .tcx
-                        .impl_method_has_trait_impl_trait_tys(*def_id)
-                    {
-                        return ((*def_id, None), CallKind::Method);
-                    }
-
-                    // if let Some(trait_def_id) = self.analyzer.tcx.trait_of_item(*def_id) {
-                    //     let assoc_items = self.analyzer.tcx.associated_items(trait_def_id);
-                    //     for assoc_item in assoc_items.in_definition_order() {
-                    //         if assoc_item.fn_has_self_parameter && assoc_item.def_id == *def_id {
-                    //             return ((*def_id, None), CallKind::Method);
-                    //         }
-                    //     }
-                    // }
-
                     if self.analyzer.tcx.is_closure_like(*def_id) {
                         return ((*def_id, None), CallKind::Closure);
                     }
@@ -342,9 +316,41 @@ where
                         }
                     }
 
+                    // Check if the def_id is a method
+                    if self.analyzer.tcx.def_kind(*def_id) == rustc_hir::def::DefKind::AssocFn {
+                        let assoc_item = self.analyzer.tcx.associated_item(*def_id);
+                        if assoc_item.fn_has_self_parameter {
+                            return ((*def_id, None), CallKind::Method);
+                        }
+                    }
+
+                    if self.analyzer.tcx.is_const_default_method(*def_id) {
+                        return ((*def_id, None), CallKind::Method);
+                    }
+
+                    if self
+                        .analyzer
+                        .tcx
+                        .impl_method_has_trait_impl_trait_tys(*def_id)
+                    {
+                        return ((*def_id, None), CallKind::Method);
+                    }
+
+                    if let Some(trait_def_id) = self.analyzer.tcx.trait_of_item(*def_id) {
+                        let assoc_items = self.analyzer.tcx.associated_items(trait_def_id);
+                        for assoc_item in assoc_items.in_definition_order() {
+                            if assoc_item.fn_has_self_parameter && assoc_item.def_id == *def_id {
+                                return ((*def_id, None), CallKind::Method);
+                            }
+                        }
+                    }
+
                     // Check if the def_id is a local function
                     if def_id.is_local() {
-                        assert!(self.analyzer.tcx.def_kind(def_id) == rustc_hir::def::DefKind::Fn);
+                        assert!(matches!(
+                            self.analyzer.tcx.def_kind(def_id),
+                            rustc_hir::def::DefKind::Fn | rustc_hir::def::DefKind::AssocFn
+                        ));
                         return ((*def_id, None), CallKind::Function);
                     }
 
