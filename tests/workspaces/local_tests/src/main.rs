@@ -259,16 +259,16 @@
 
 // ====================================================================================
 
+fn f1() -> i32 {
+    10
+}
 
-const TEST: fn(u8) = |t| { let _ = t; };
-
-pub fn add(left: u64, right: u64) -> u64 {
-    let y = &TEST;
-    y(10);
-    left + right
+fn f2() -> i32 {
+    20
 }
 
 fn main() {
-    // let result = add(2, 2);
-    // assert_eq!(result, 4);
+    let af1 = &f1;
+    let af2 = &f2;
+    let result = af1() + af2();
 }
