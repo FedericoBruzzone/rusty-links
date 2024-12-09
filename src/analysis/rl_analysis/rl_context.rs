@@ -124,18 +124,24 @@ where
     // The weight of the edge is the type of the argument.
     pub map_place_ty: FxHashMap<mir::Local, RLTy<'tcx, 'a>>,
 
-    // Abstract state.
-    // Map of places and their rvalues, this refers to the local_def_id we are visiting.
-    // It is used to keep track of the rvalue of a local variable.
-    // The value is an option because the rvalues are not initialized at the beginning.
-    //
-    // Basically, it is used to retrieve the function that is called
-    // when it is aliased to a local variable.
-    //
-    // See `visit_local` function.
+    /// Abstract state.
+    /// Map of places and their rvalues, this refers to the local_def_id we are visiting.
+    /// It is used to keep track of the rvalue of a local variable.
+    /// The value is an option because the rvalues are not initialized at the beginning.
+    ///
+    /// Basically, it is used to retrieve the function that is called
+    /// when it is aliased to a local variable.
+    ///
+    /// See `visit_local` function.
     pub map_place_rlvalue: FxHashMap<mir::Local, Option<RLValue<'tcx>>>,
 
-    // Abstract domain.
+    /// Abstract domain.
+    /// Map from basic block to the map of places and their rvalues.
+    /// It is used to retrieve the rvalues of the places that are used in the basic block.
+    /// The value is an option because the rvalues are not initialized at the beginning.
+    ///
+    /// Basically, after visiting all the basic blocks, we have the rvalues of the places
+    /// that are used in the basic block.
     pub map_bb_to_map_place_rlvalue:
         FxHashMap<mir::BasicBlock, FxHashMap<mir::Local, Option<RLValue<'tcx>>>>,
 
@@ -143,9 +149,9 @@ where
     /// It is used to retrieve the places that are used in the basic block.
     pub map_bb_used_locals: FxHashMap<mir::BasicBlock, FxHashSet<mir::Local>>,
 
-    // Map from def_id to the index of the node in the graph.
-    // It is used to retrieve the index of the node in the graph
-    // when we need to add an edge.
+    /// Map from def_id to the index of the node in the graph.
+    /// It is used to retrieve the index of the node in the graph
+    /// when we need to add an edge.
     pub rl_graph_index_map: FxHashMap<(DefId, Option<Promoted>), G::Index>,
 }
 

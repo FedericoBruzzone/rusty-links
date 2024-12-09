@@ -196,9 +196,11 @@ where
                 _ => unreachable!(),
             }
         } else {
+            // We need to retrieve the upper local in order to perform the search of it in the parent basic blocks.
             let upper_local =
                 self.retrieve_upper_local_non_const(local, bb, &self.ctx.map_bb_used_locals[&bb]);
 
+            // All possibile basic blocks that can be reached from the current basic block after a SwitchInt.
             let all_targets =
                 self.ctx.map_parent_bb[&self.ctx.current_basic_block.unwrap()].clone();
             let mut res = Vec::new();
@@ -210,6 +212,8 @@ where
         }
     }
 
+    /// Retrieve the upper local that is not a constant.
+    /// This function is used to retrieve the upper local that is not a constant.
     fn retrieve_upper_local_non_const(
         &self,
         local: mir::Local,

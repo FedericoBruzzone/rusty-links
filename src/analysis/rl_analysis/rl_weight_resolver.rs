@@ -42,18 +42,22 @@ where
         }
     }
 
+    #[inline(always)]
     fn resolve_const(&self, args: &'a [mir::Operand<'tcx>]) -> Vec<f32> {
         self.resolve_args(args)
     }
 
+    #[inline(always)]
     fn resolve_static(&self, args: &'a [mir::Operand<'tcx>]) -> Vec<f32> {
         self.resolve_args(args)
     }
 
+    #[inline(always)]
     fn resolve_mut_static(&self, args: &'a [mir::Operand<'tcx>]) -> Vec<f32> {
         self.resolve_args(args)
     }
 
+    #[inline(always)]
     fn resolve_method_weights(&self, args: &'a [mir::Operand<'tcx>]) -> Vec<f32> {
         let self_weight = self.resolve_self(&args[0]);
         let mut arg_weights = if args.len() > 1 {
@@ -65,10 +69,12 @@ where
         arg_weights
     }
 
+    #[inline(always)]
     fn resolve_function_weights(&self, args: &'a [mir::Operand<'tcx>]) -> Vec<f32> {
         self.resolve_args(args)
     }
 
+    #[inline(always)]
     fn resolve_closure_weights(&self, args: &'a [mir::Operand<'tcx>]) -> Vec<f32> {
         self.resolve_args(args)
     }
@@ -92,11 +98,13 @@ where
             mir::Operand::Copy(place) => self.resolve_place(place) * COPY_MULTIPLIER,
             mir::Operand::Constant(const_operand) => {
                 self.resolve_const_operand(const_operand) * CONSTANT_MULTIPLIER
-            } // Static is not good
+            }
         }
     }
 
     fn resolve_place(&self, _place: &mir::Place<'tcx>) -> f32 {
+        // Handle the clone
+        // Static is not good
         1.0
     }
 
