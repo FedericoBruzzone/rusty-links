@@ -23,6 +23,8 @@ use super::rl_graph::RLGraph;
 use super::rl_graph::RLGraphEdge;
 use super::rl_graph::RLGraphNode;
 use super::rl_graph::{RLEdge, RLIndex, RLNode};
+use super::rl_weight_resolver::CallKindMultiplier;
+use super::rl_weight_resolver::OperandMultiplier;
 use super::Analyzer;
 
 pub struct RLVisitor<'tcx, 'a, G>
@@ -188,7 +190,11 @@ where
     /// The edge is weighted by the arguments of the function call.
     /// The `to_def_id` is the def_id of the function that is called.
     /// Abstractly, the `from_def_id` is the def_id of the current visited function.
-    fn add_edge(&mut self, to_def_id: (DefId, Option<Promoted>), arg_weights: Vec<f32>) {
+    fn add_edge(
+        &mut self,
+        to_def_id: (DefId, Option<Promoted>),
+        arg_weights: (CallKindMultiplier, Vec<(OperandMultiplier, f32)>),
+    ) {
         log::debug!(
             "Adding an edge between the current visited function ({:?}) and the function that is called ({:?}) with the arguments: {:?}",
             self.ctx.current_local_def_id.unwrap(),

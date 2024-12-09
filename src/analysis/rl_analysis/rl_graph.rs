@@ -1,3 +1,4 @@
+use super::rl_weight_resolver::{CallKindMultiplier, OperandMultiplier};
 use rustc_hir::def_id::{CrateNum, DefIndex};
 use rustc_middle::mir::Promoted;
 use rustc_span::def_id::DefId;
@@ -5,8 +6,7 @@ use serde::{Deserialize, Serialize};
 
 /// The `RLGraphEdge` trait represents an edge in a graph.
 pub trait RLGraphEdge {
-    fn create(_arg_weights: Vec<f32>) -> Self;
-    fn calc_total_weight(arg_weights: &[f32]) -> f32;
+    fn create(edge: (CallKindMultiplier, Vec<(OperandMultiplier, f32)>)) -> Self;
     fn total_weight(&self) -> f32;
 }
 
@@ -154,22 +154,34 @@ pub struct RLEdge {
     // }
     // ```
     // The weights of the arguments in this example are both moved, so the total weight of the edge is 2.
-    _arg_weights: Vec<f32>,
+    arg_weights: Vec<(OperandMultiplier, f32)>,
+    // It represents the kind of the call and the multiplier of the call.
+    // The multiplier is used to calculate the total weight of the edge.
+    // A call can be a static call, a method call, a function call, etc.
+    call_multiplier: CallKindMultiplier,
     total_weight: f32,
 }
 
+impl RLEdge {
+    fn calc_total_weight(edge: &(CallKindMultiplier, Vec<(OperandMultiplier, f32)>)) -> f32 {
+        let (call_multiplier, arg_weights) = edge;
+        let total_weight = arg_weights
+            .iter()
+            .map(|(operand_multiplier, weight)| **operand_multiplier * *weight)
+            .sum::<f32>();
+        total_weight * **call_multiplier
+    }
+}
+
 impl RLGraphEdge for RLEdge {
-    fn create(_arg_weights: Vec<f32>) -> Self {
-        let total_weight = Self::calc_total_weight(&_arg_weights);
+    fn create(edge: (CallKindMultiplier, Vec<(OperandMultiplier, f32)>)) -> Self {
+        let total_weight = Self::calc_total_weight(&edge);
+        let (call_multiplier, arg_weights) = edge;
         Self {
-            _arg_weights,
+            call_multiplier,
+            arg_weights,
             total_weight,
         }
-    }
-
-    fn calc_total_weight(arg_weights: &[f32]) -> f32 {
-        // FIXME
-        arg_weights.iter().sum()
     }
 
     fn total_weight(&self) -> f32 {
