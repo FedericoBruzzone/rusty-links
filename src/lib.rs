@@ -12,7 +12,7 @@ extern crate rustc_middle;
 extern crate rustc_session;
 extern crate rustc_span;
 
-mod analysis;
+pub mod analysis;
 pub mod instrument;
 
 use analysis::{rl_analysis::RLAnalysis, Analyzer};
@@ -60,6 +60,10 @@ pub struct CliArgs {
 pub struct RustyLinks;
 
 impl RustyLinks {
+    pub fn before_exec() {
+        log::debug!("After exec");
+        // RLAnalysis::<rustworkx_core::petgraph::graph::DiGraph<_, _, _>>::clear_rl_folder();
+    }
     pub fn after_exec() {
         log::debug!("After exec");
         RLAnalysis::<rustworkx_core::petgraph::graph::DiGraph<_, _, _>>::merge_all_rl_graphs();

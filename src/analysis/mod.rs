@@ -1,5 +1,5 @@
 pub mod rl_analysis;
-mod utils;
+pub mod utils;
 
 use crate::CliArgs;
 use rl_analysis::rl_graph::{RLEdge, RLGraph, RLIndex, RLNode};
@@ -46,12 +46,20 @@ impl<'tcx> Analyzer<'tcx> {
             + DeserializeOwned,
     {
         log::debug!("Post-processing CLI arguments");
-        let rl_graph: G =
-            self.deserialize_rl_graph_from_file(&self.tcx.crate_name(LOCAL_CRATE).to_string());
+        // let rl_graph: G =
+        //     self.deserialize_rl_graph_from_file(&self.tcx.crate_name(LOCAL_CRATE).to_string());
+        let rl_graph: G = RLAnalysis::deserialized_rl_graph_from_file(
+            format!(
+                "{}/{}.rlg",
+                RL_SERDE_FOLDER,
+                &self.tcx.crate_name(LOCAL_CRATE).to_string()
+            )
+            .as_str(),
+        );
 
         if self.cli_args.print_rl_graph {
             log::debug!("Printing the RustyLinks graph");
-            rl_graph.print_dot();
+            println!("{}", rl_graph.as_dot_str());
         }
 
         if self.cli_args.print_serialized_rl_graph {
@@ -67,20 +75,6 @@ impl<'tcx> Analyzer<'tcx> {
         } else {
             msg.to_string()
         }
-    }
-
-    fn deserialize_rl_graph_from_file<G>(&self, krate_name: &str) -> G
-    where
-        G: RLGraph<Node = RLNode, Edge = RLEdge, Index = RLIndex>
-            + Default
-            + Clone
-            + Serialize
-            + DeserializeOwned,
-    {
-        let file_name = format!("{}/{}.rlg", RL_SERDE_FOLDER, krate_name);
-        let file = std::fs::File::open(file_name).expect("Failed to open file");
-        let rl_graph: G = serde_json::from_reader(file).expect("Failed to deserialize RLGraph");
-        rl_graph
     }
 
     fn run_analysis(&mut self, name: &str, f: impl FnOnce(&Self)) {

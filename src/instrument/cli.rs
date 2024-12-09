@@ -40,7 +40,9 @@ pub const RUSTC_WORKSPACE_WRAPPER: &str = "RUSTC_WORKSPACE_WRAPPER";
 ///     "crates/crate_b",
 /// ]
 /// ```
-pub fn cli_main<T: RustcPlugin>(plugin: T, after_exec: impl FnOnce()) {
+pub fn cli_main<T: RustcPlugin>(plugin: T, before_exec: impl FnOnce(), after_exec: impl FnOnce()) {
+    before_exec();
+
     log::debug!("{:?}", env::args());
 
     // cargo run --bin <rustc-plug-cli> -- -V

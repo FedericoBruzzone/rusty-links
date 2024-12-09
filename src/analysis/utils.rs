@@ -23,6 +23,7 @@ pub const RUSTC_DEPENDENCIES: [&str; 19] = [
 ];
 
 pub const RL_SERDE_FOLDER: &str = ".rl_serde";
+pub const MERGED_FILE_NAME: &str = "rlg_merged";
 
 pub enum TextMod {
     Reset,

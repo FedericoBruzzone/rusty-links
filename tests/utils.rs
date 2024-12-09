@@ -47,7 +47,7 @@ pub fn run_with_cargo_bin(
         root_dir.join("bin").display(),
         env::var("PATH").unwrap_or_default()
     );
-    let workspace_path = current_dir.join("tests").join(cargo_project_name);
+    let workspace_path = current_dir.join(cargo_project_name);
     let mut cargo_cmd = Command::new("cargo");
     cargo_cmd.arg(PLUGIN_NAME);
     for arg in plugin_args {
@@ -111,7 +111,7 @@ pub fn run_with_cargo_bin_and_snippet(
     plugin_args: &[&str],
 ) -> Result<(String, Option<String>), String> {
     create_cargo_project_with_snippet(snippet).unwrap();
-    let result = run_with_cargo_bin("workspaces/temp", None, plugin_args);
+    let result = run_with_cargo_bin("tests/workspaces/temp", None, plugin_args);
     remove_cargo_project_with_snippet().unwrap();
     result
 }

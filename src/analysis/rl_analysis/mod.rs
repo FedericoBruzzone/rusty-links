@@ -5,7 +5,10 @@ mod rl_petgraph;
 mod rl_visitor;
 mod rl_weight_resolver;
 
-use super::{utils::RL_SERDE_FOLDER, Analyzer};
+use super::{
+    utils::{MERGED_FILE_NAME, RL_SERDE_FOLDER},
+    Analyzer,
+};
 use rl_graph::{RLEdge, RLGraph, RLIndex, RLNode};
 use rl_visitor::RLVisitor;
 
@@ -87,6 +90,8 @@ where
         serde_json::to_writer(file, rl_graph).expect("Failed to serialize RLGraph");
     }
 
+    /// Merge all the RLGraphs in the folder `RL_SERDE_FOLDER` into a single RLGraph.
+    /// The merged RLGraph is serialized into a file named `MERGED_FILE_NAME`.
     pub fn merge_all_rl_graphs() {
         let mut merged_rl_graph: G = G::default();
         let rl_graphs = std::fs::read_dir(RL_SERDE_FOLDER).expect("Failed to read folder");
@@ -98,7 +103,25 @@ where
             merged_rl_graph.merge(&rl_graph);
         }
 
-        merged_rl_graph.print_dot();
+        let file_name = format!("{}/{}", RL_SERDE_FOLDER, MERGED_FILE_NAME);
+        let file = std::fs::File::create(file_name).expect("Failed to create file");
+        serde_json::to_writer(file, &merged_rl_graph).expect("Failed to serialize RLGraph");
+    }
+
+    pub fn deserialized_rl_graph_from_file(file_path: &str) -> G {
+        let file = std::fs::File::open(file_path).expect("Failed to open file");
+        serde_json::from_reader(file).expect("Failed to deserialize RLGraph")
+    }
+
+    pub fn clear_rl_folder() {
+        match std::fs::remove_dir_all(RL_SERDE_FOLDER) {
+            Ok(_) => {}
+            Err(e) => {
+                if e.kind() != std::io::ErrorKind::NotFound {
+                    panic!("Failed to remove folder");
+                }
+            }
+        }
     }
 
     pub fn run(&self) {

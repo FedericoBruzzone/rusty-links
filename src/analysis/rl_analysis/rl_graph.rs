@@ -35,7 +35,7 @@ pub trait RLGraph {
     fn rl_add_node(&mut self, node: Self::Node) -> Self::Index;
     fn rl_add_edge(&mut self, source: Self::Index, target: Self::Index, edge: Self::Edge);
     fn merge(&mut self, other: &Self);
-    fn print_dot(&self);
+    fn as_dot_str(&self) -> String;
 }
 
 #[derive(Debug, Clone)]

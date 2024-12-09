@@ -74,7 +74,7 @@ impl RLGraph for graph::DiGraph<RLNode, RLEdge, RLIndex> {
         }
     }
 
-    fn print_dot(&self) {
+    fn as_dot_str(&self) -> String {
         use rustworkx_core::petgraph::dot::{Config, Dot};
 
         let get_node_attr =
@@ -90,7 +90,7 @@ impl RLGraph for graph::DiGraph<RLNode, RLEdge, RLIndex> {
                 // format!("label=\"i{}: {:?}\"", index, node.def_id())
             };
 
-        println!(
+        format!(
             "{:?}",
             Dot::with_attr_getters(
                 &self,
