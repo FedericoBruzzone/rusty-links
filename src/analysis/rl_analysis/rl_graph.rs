@@ -58,9 +58,16 @@ impl PartialEq for RLNode {
     // `~` character.
     fn eq(&self, other: &Self) -> bool {
         let def_id_str_1 = self.def_id_str();
+        let promoted_1 = self
+            .promoted()
+            .map_or(u32::MAX, |promoted| promoted.as_u32());
         let def_id_str_2 = other.def_id_str();
+        let promoted_2 = other
+            .promoted()
+            .map_or(u32::MAX, |promoted| promoted.as_u32());
         def_id_str_1.split('~').collect::<Vec<_>>()[1]
             == def_id_str_2.split('~').collect::<Vec<_>>()[1]
+            && promoted_1 == promoted_2
     }
 }
 
@@ -97,7 +104,7 @@ impl Serialize for RLNode {
             self.def_id.krate.as_u32(),
             self.def_id.index.as_u32(),
             promoted,
-            self.def_id_str
+            self.def_id_str,
         ))
     }
 }
@@ -112,7 +119,7 @@ impl<'de> Deserialize<'de> for RLNode {
         let krate = parts[0].parse().unwrap();
         let index = parts[1].parse().unwrap();
         let promoted = match parts[2] {
-            "4294967295" => None,
+            "4294967295" /* u32::MAX */ => None,
             _ => Some(Promoted::from_u32(parts[2].parse().unwrap())),
         };
         // We need to join the rest of the parts because the def_id_str can contain ':' characters.

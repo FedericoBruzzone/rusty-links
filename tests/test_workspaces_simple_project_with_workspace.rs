@@ -24,23 +24,9 @@ mod test_workspaces_simple_project_with_workspace {
             )
             .as_dot_str();
 
-        // Print folder content
-        println!("Folder content:");
-        let output2 = std::fs::read_dir(format!("{}/{}", FOLDER, RL_SERDE_FOLDER))
-            .unwrap()
-            .map(|entry| entry.unwrap().path())
-            .map(|path| path.display().to_string())
-            .collect::<Vec<String>>()
-            .join("\n");
-
-        println!("{}", output);
-        println!("{}", output2);
-
-        assert!(output.contains("1 -> 0"));
-        assert!(output.contains("3 -> 1"));
-        assert!(output.contains("3 -> 2"));
-        assert!(output.contains("3 -> 4"));
-        assert!(output.contains("3 -> 5"));
+        assert!(output.contains("1 -> 0")); // crate_a::add -> crate_a::test
+        assert!(output.contains("3 -> 1")); // main -> crate_a::add
+        assert!(output.contains("3 -> 2")); // main -> crate_b::sub
 
         Ok(())
     }

@@ -2,7 +2,7 @@
 
 mod utils;
 
-mod test_workspaces_simple_project_with_workspace_with_specified_bin {
+mod test_workspaces_project_maybe_conflict_closure {
     use petgraph::graph::DiGraph;
     use rusty_links::analysis::rl_analysis::{
         rl_graph::{RLEdge, RLGraph, RLIndex, RLNode},
@@ -14,9 +14,8 @@ mod test_workspaces_simple_project_with_workspace_with_specified_bin {
     // use pretty_assertions::assert_eq;
 
     #[test]
-    fn test_workspaces_simple_project_with_workspace_with_specified_bin_dot_file(
-    ) -> Result<(), String> {
-        const FOLDER: &str = "tests/workspaces/simple_project_with_workspace_with_specified_bin";
+    fn test_workspaces_project_maybe_conflict_closure_dot_file() -> Result<(), String> {
+        const FOLDER: &str = "tests/workspaces/project_maybe_conflict_closure";
         let _ = run_with_cargo_bin(FOLDER, None, &[])?;
         let folder_path = format!("{}/{}/{}.rlg", FOLDER, RL_SERDE_FOLDER, MERGED_FILE_NAME);
         let output =
@@ -25,12 +24,10 @@ mod test_workspaces_simple_project_with_workspace_with_specified_bin {
             )
             .as_dot_str();
 
-        println!("{}", output);
-
-        assert!(output.contains("2 -> 0")); //
-        assert!(output.contains("2 -> 1"));
-        assert!(output.contains("2 -> 3"));
-        assert!(output.contains("2 -> 4"));
+        assert!(output.contains("2 -> 3")); // crate_a::add -> TEST
+        assert!(output.contains("6 -> 7")); // crate_b::add -> TEST
+        assert!(output.contains("8 -> 2")); // main -> crate_a::add
+        assert!(output.contains("8 -> 6")); // main -> crate_b::add
 
         Ok(())
     }

@@ -227,39 +227,48 @@
 // }
 
 // fn main() {
-    // let t = TEST_LAMBDA;
-    // t();
+//     let t = TEST_LAMBDA;
+//     t();
 
-    // let t = &TEST_LAMBDA;
-    // t();
+//     let t = &TEST_LAMBDA;
+//     t();
 
-    // let t = unsafe { TEST_LAMBDA_MUT };
-    // t();
+//     let t = unsafe { TEST_LAMBDA_MUT };
+//     t();
 
-    // let t = unsafe { &TEST_LAMBDA_MUT };
-    // t();
+//     let t = unsafe { &TEST_LAMBDA_MUT };
+//     t();
 
-    // let t = TEST_LAMBDA_C;
-    // t();
+//     let t = TEST_LAMBDA_C;
+//     t();
 
-    // let t = &TEST_LAMBDA_C;
-    // t();
+//     let t = &TEST_LAMBDA_C;
+//     t();
 // }
 
-struct T {
-    _value: i32,
-}
+// ====================================================================================
+// Promoted (unevaluated) constants
 
-impl T {
-    fn test_method(self) {
-        let _ = self;
-    }
-    fn test_fun() {
-    }
+// struct T { _value: i32, }
+// const TEST: fn(T) = |t| { let _ = t; };
+// fn main() {
+//     let x = T { _value: 10 };
+//     let y = &TEST;
+//     y(x);
+// }
+
+// ====================================================================================
+
+
+const TEST: fn(u8) = |t| { let _ = t; };
+
+pub fn add(left: u64, right: u64) -> u64 {
+    let y = &TEST;
+    y(10);
+    left + right
 }
 
 fn main() {
-    T { _value: 10 }.test_method();
-    T::test_fun();
+    // let result = add(2, 2);
+    // assert_eq!(result, 4);
 }
-

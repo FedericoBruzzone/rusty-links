@@ -136,6 +136,16 @@ where
                                 // ```
                                 vec![self.def_id_as_static_or_const(unevaluated_const.def)]
                             }
+                            // An unevaluated constant can be a reference to a const function.
+                            // ```rust, ignore
+                            // struct T { _value: i32, }
+                            // const TEST: fn(T) = |t| { let _ = t; };
+                            // fn main() {
+                            //     let x = T { _value: 10 };
+                            //     let y = &TEST;
+                            //     y(x);
+                            // }
+                            // ```
                             ty::TyKind::Ref(_, _, _) => match unevaluated_const.promoted {
                                 Some(x) => {
                                     let promoted =
