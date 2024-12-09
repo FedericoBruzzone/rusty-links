@@ -98,8 +98,8 @@ where
             .expect("Failed to read folder")
             .map(|entry| entry.expect("Failed to read entry"))
             .collect::<Vec<_>>();
-        // It is important to sort the files to have a deterministic order. This is useful for tests.
-        rl_graphs.sort_by(|a, b| a.path().cmp(&b.path()));
+        // It is important to sort the files to have a deterministic order
+        rl_graphs.sort_by_key(|a| a.path());
 
         for rl_graph in rl_graphs {
             let file = std::fs::File::open(rl_graph.path()).expect("Failed to open file");
