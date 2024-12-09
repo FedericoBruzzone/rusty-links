@@ -18,14 +18,12 @@ mod test_workspaces_simple_project_with_workspace_with_specified_bin {
     ) -> Result<(), String> {
         const FOLDER: &str = "tests/workspaces/simple_project_with_workspace_with_specified_bin";
         let _ = run_with_cargo_bin(FOLDER, None, &[])?;
-        let folder_path = format!("{}/{}/{}", FOLDER, RL_SERDE_FOLDER, MERGED_FILE_NAME);
+        let folder_path = format!("{}/{}/{}.rlg", FOLDER, RL_SERDE_FOLDER, MERGED_FILE_NAME);
         let output =
             RLAnalysis::<DiGraph<RLNode, RLEdge, RLIndex>>::deserialized_rl_graph_from_file(
                 folder_path.as_str(),
             )
             .as_dot_str();
-
-        println!("{output}");
 
         assert!(output.contains("2 -> 0"));
         assert!(output.contains("2 -> 1"));

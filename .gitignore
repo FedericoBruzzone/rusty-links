@@ -2,8 +2,11 @@
 # svn
 .svn
 # useless files
+temp
 ast
 test
+mir
+.rl_serde
 
 
 ### Rust ###

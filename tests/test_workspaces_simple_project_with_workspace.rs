@@ -17,20 +17,30 @@ mod test_workspaces_simple_project_with_workspace {
     fn test_workspaces_simple_project_with_workspace_dot_file() -> Result<(), String> {
         const FOLDER: &str = "tests/workspaces/simple_project_with_workspace";
         let _ = run_with_cargo_bin(FOLDER, None, &[])?;
-        let folder_path = format!("{}/{}/{}", FOLDER, RL_SERDE_FOLDER, MERGED_FILE_NAME);
-        let output = format!(
-            "{:?}",
+        let file_path = format!("{}/{}/{}.rlg", FOLDER, RL_SERDE_FOLDER, MERGED_FILE_NAME);
+        let output =
             RLAnalysis::<DiGraph<RLNode, RLEdge, RLIndex>>::deserialized_rl_graph_from_file(
-                folder_path.as_str(),
+                file_path.as_str(),
             )
-            .as_dot_str()
-        );
+            .as_dot_str();
+
+        // Print folder content
+        println!("Folder content:");
+        let output2 = std::fs::read_dir(format!("{}/{}", FOLDER, RL_SERDE_FOLDER))
+            .unwrap()
+            .map(|entry| entry.unwrap().path())
+            .map(|path| path.display().to_string())
+            .collect::<Vec<String>>()
+            .join("\n");
+
+        println!("{}", output);
+        println!("{}", output2);
 
         assert!(output.contains("1 -> 0"));
-        assert!(output.contains("2 -> 1"));
-        assert!(output.contains("2 -> 3"));
-        assert!(output.contains("2 -> 4"));
-        assert!(output.contains("2 -> 5"));
+        assert!(output.contains("3 -> 1"));
+        assert!(output.contains("3 -> 2"));
+        assert!(output.contains("3 -> 4"));
+        assert!(output.contains("3 -> 5"));
 
         Ok(())
     }

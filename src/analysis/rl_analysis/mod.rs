@@ -94,16 +94,20 @@ where
     /// The merged RLGraph is serialized into a file named `MERGED_FILE_NAME`.
     pub fn merge_all_rl_graphs() {
         let mut merged_rl_graph: G = G::default();
-        let rl_graphs = std::fs::read_dir(RL_SERDE_FOLDER).expect("Failed to read folder");
+        let mut rl_graphs = std::fs::read_dir(RL_SERDE_FOLDER)
+            .expect("Failed to read folder")
+            .map(|entry| entry.expect("Failed to read entry"))
+            .collect::<Vec<_>>();
+        // It is important to sort the files to have a deterministic order. This is useful for tests.
+        rl_graphs.sort_by(|a, b| a.path().cmp(&b.path()));
 
         for rl_graph in rl_graphs {
-            let rl_graph = rl_graph.expect("Failed to read file");
             let file = std::fs::File::open(rl_graph.path()).expect("Failed to open file");
             let rl_graph: G = serde_json::from_reader(file).expect("Failed to deserialize RLGraph");
             merged_rl_graph.merge(&rl_graph);
         }
 
-        let file_name = format!("{}/{}", RL_SERDE_FOLDER, MERGED_FILE_NAME);
+        let file_name = format!("{}/{}.rlg", RL_SERDE_FOLDER, MERGED_FILE_NAME);
         let file = std::fs::File::create(file_name).expect("Failed to create file");
         serde_json::to_writer(file, &merged_rl_graph).expect("Failed to serialize RLGraph");
     }
