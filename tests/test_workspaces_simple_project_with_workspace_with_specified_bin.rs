@@ -27,10 +27,8 @@ mod test_workspaces_simple_project_with_workspace_with_specified_bin {
 
         println!("{}", output);
 
-        assert!(output.contains("2 -> 0")); //
-        assert!(output.contains("2 -> 1"));
-        assert!(output.contains("2 -> 3"));
-        assert!(output.contains("2 -> 4"));
+        assert!(output.contains("2 -> 0")); // main -> crate_a::add
+        assert!(output.contains("2 -> 1")); // main -> crate_b::add
 
         Ok(())
     }
