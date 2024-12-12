@@ -102,7 +102,7 @@ where
             self.ctx.map_place_ty.remove(&local);
         }
 
-        log::trace!("The map_bb_parent: {:?}", self.ctx.map_parent_bb);
+        log::trace!("The map_parent_bb: {:?}", self.ctx.map_parent_bb);
         // Clear map_parent_bb
         self.ctx.map_parent_bb = rustc_hash::FxHashMap::default();
 
@@ -402,8 +402,8 @@ where
                     self.ctx.map_place_rlvalue.clone(),
                 );
 
-                let resolved_call = RLCallResolver::new(&self.ctx, self.analyzer)
-                    .resolve_call_def_id(func, self.ctx.current_basic_block.unwrap());
+                let (resolved_call, args) = RLCallResolver::new(&self.ctx, self.analyzer)
+                    .resolve_call_def_id(func, args.clone(), self.ctx.current_basic_block.unwrap());
 
                 // It is not important what branch is taken.
                 // We need the vector only to create edges between the caller and the callee.
@@ -446,7 +446,7 @@ where
 
                 for ((def_id, promoted), call_kind) in resolved_call {
                     if call_kind != CallKind::Unknown && call_kind != CallKind::Clone {
-                        let args = self.update_args(args, &call_kind);
+                        let args = self.update_args(&args, &call_kind);
                         let arg_weights =
                             RLWeightResolver::new(&self.ctx).resolve_arg_weights(&call_kind, &args);
                         self.add_edge((def_id, promoted), arg_weights);
@@ -500,7 +500,9 @@ where
                 msg: _,
                 target,
                 ..
-            } => self.ctx.add_current_bb_as_parent_of(*target),
+            } => {
+                self.ctx.add_current_bb_as_parent_of(*target);
+            }
             mir::TerminatorKind::FalseEdge { real_target, .. } => {
                 self.ctx.add_current_bb_as_parent_of(*real_target)
             }

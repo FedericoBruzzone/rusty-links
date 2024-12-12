@@ -7,7 +7,7 @@ use rustc_span::def_id::DefId;
 use serde::de::DeserializeOwned;
 use serde::Serialize;
 
-#[derive(Debug, PartialEq)]
+#[derive(Clone, Debug, PartialEq)]
 pub enum CallKind {
     Clone,
     StaticMut,
@@ -29,6 +29,7 @@ impl From<ty::Mutability> for CallKind {
 }
 
 #[allow(dead_code)]
+#[derive(Debug, Clone)]
 /// RlRy is a struct that represents the type of a place (local variable).
 /// It is used to weight the edges of the graph.
 /// At the beginning, all the places are assigned to its RlTy, since
@@ -50,6 +51,10 @@ impl<'tcx, 'a> RLTy<'tcx, 'a> {
             mutability,
             user_binding,
         }
+    }
+
+    pub fn kind(&self) -> &'a ty::TyKind<'tcx> {
+        self.kind
     }
 }
 

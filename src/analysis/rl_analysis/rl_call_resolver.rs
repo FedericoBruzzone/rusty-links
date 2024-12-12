@@ -8,9 +8,20 @@ use rustc_hash::FxHashSet;
 use rustc_hir::def_id::{DefId, DefIndex};
 use rustc_middle::{
     mir::{self, Operand, Promoted, Rvalue},
-    ty,
+    ty::{self},
 };
+use rustc_span::source_map::Spanned;
 use serde::Serialize;
+
+type ResolverResult<'tcx> = (
+    Vec<((DefId, Option<Promoted>), CallKind)>,
+    Box<[Spanned<Operand<'tcx>>]>,
+);
+
+type PartialResolverResult<'tcx> = (
+    ((DefId, Option<Promoted>), CallKind),
+    Box<[Spanned<Operand<'tcx>>]>,
+);
 
 pub struct RLCallResolver<'tcx, 'a, G>
 where
@@ -42,13 +53,14 @@ where
     /// *NOTE*: This function is called always from the `visit_terminator` since the functions
     /// can be called only in it.
     pub fn resolve_call_def_id(
-        &self,
+        &'a self,
         func: &mir::Operand<'tcx>,
+        args: Box<[Spanned<Operand<'tcx>>]>,
         bb: mir::BasicBlock,
-    ) -> Vec<((DefId, Option<Promoted>), CallKind)> {
+    ) -> ResolverResult<'tcx> {
         match func {
             Operand::Copy(place) => {
-                let res = self.retrieve_def_id(place.local, bb);
+                let res = self.retrieve_def_id(place.local, args, bb);
                 log::debug!(
                     "Retrieved(Copy) the def_id of the function (local: {:?}) that is called",
                     place.local
@@ -56,7 +68,7 @@ where
                 res
             }
             Operand::Move(place) => {
-                let res = self.retrieve_def_id(place.local, bb);
+                let res = self.retrieve_def_id(place.local, args, bb);
                 log::debug!(
                     "Retrieved(Move) the def_id of the function (local: {:?}) that is called",
                     place.local
@@ -64,13 +76,14 @@ where
                 res
             }
             Operand::Constant(const_operand) => {
-                let (def_id, call_kind) = self.get_def_id(const_operand);
+                let ((def_id, call_kind), args) = self.get_def_id(const_operand, args);
                 log::debug!(
                     "Retrieved(Constant) the def_id {:?} of the {:?} that is called",
                     def_id,
                     call_kind
                 );
-                vec![(def_id, call_kind)]
+
+                (vec![(def_id, call_kind)], args)
             }
         }
     }
@@ -86,10 +99,11 @@ where
     ///
     /// This function operates in O(n) where n is the depth of the recursion.
     pub fn retrieve_def_id(
-        &self,
+        &'a self,
         local: mir::Local,
+        args: Box<[Spanned<Operand<'tcx>>]>,
         bb: mir::BasicBlock,
-    ) -> Vec<((DefId, Option<Promoted>), CallKind)> {
+    ) -> ResolverResult<'tcx> {
         log::debug!(
             "Retrieving the def_id of the function (local: {:?}) that is called",
             local
@@ -120,7 +134,7 @@ where
                     // by `retrieve_call_def_id` in case of a constant.
                     match const_operand.const_ {
                         mir::Const::Val(const_value, ty) => {
-                            vec![self.retrieve_const_val(const_value, ty)]
+                            (vec![self.retrieve_const_val(const_value, ty)], args)
                         }
                         mir::Const::Unevaluated(unevaluated_const, ty) => match ty.kind() {
                             ty::TyKind::FnPtr(_, _) => {
@@ -134,7 +148,10 @@ where
                                 //     _1 = const  const {alloc11: &fn()}-> [return: bb1, unwind continue];
                                 // }
                                 // ```
-                                vec![self.def_id_as_static_or_const(unevaluated_const.def)]
+                                (
+                                    vec![self.def_id_as_static_or_const(unevaluated_const.def)],
+                                    args,
+                                )
                             }
                             // An unevaluated constant can be a reference to a const function.
                             // ```rust, ignore
@@ -152,7 +169,7 @@ where
                                         self.analyzer.tcx.promoted_mir(unevaluated_const.def);
                                     let def_id = promoted[x].source.instance.def_id();
                                     let promoted = promoted[x].source.promoted.unwrap();
-                                    vec![((def_id, Some(promoted)), CallKind::Const)]
+                                    (vec![((def_id, Some(promoted)), CallKind::Const)], args)
                                 }
                                 None => unreachable!(),
                             },
@@ -163,14 +180,16 @@ where
                 }
                 // _5 = copy (*_6)
                 RLValue::Rvalue(Rvalue::Use(Operand::Copy(place))) => {
-                    self.retrieve_def_id(place.local, bb)
+                    self.retrieve_def_id(place.local, args, bb)
                 }
                 // _5 = move _6
                 RLValue::Rvalue(Rvalue::Use(Operand::Move(place))) => {
-                    self.retrieve_def_id(place.local, bb)
+                    self.retrieve_def_id(place.local, args, bb)
                 }
 
-                RLValue::Rvalue(Rvalue::Ref(_, _, place)) => self.retrieve_def_id(place.local, bb),
+                RLValue::Rvalue(Rvalue::Ref(_, _, place)) => {
+                    self.retrieve_def_id(place.local, args, bb)
+                }
                 // In rust is:
                 //
                 // ```rust, ignore
@@ -191,7 +210,7 @@ where
                 // }
                 // ```
                 RLValue::Rvalue(Rvalue::Cast(_, operand, _)) => {
-                    self.resolve_call_def_id(operand, bb)
+                    self.resolve_call_def_id(operand, args, bb)
                 }
                 _ => unreachable!(),
             }
@@ -205,10 +224,10 @@ where
                 self.ctx.map_parent_bb[&self.ctx.current_basic_block.unwrap()].clone();
             let mut res = Vec::new();
             for target in all_targets {
-                let res_target = self.retrieve_def_id(upper_local, target);
+                let (res_target, _) = self.retrieve_def_id(upper_local, args.clone(), target);
                 res.extend(res_target);
             }
-            res
+            (res, args)
         }
     }
 
@@ -296,7 +315,8 @@ where
     fn get_def_id(
         &self,
         const_operand: &mir::ConstOperand<'tcx>,
-    ) -> ((DefId, Option<Promoted>), CallKind) {
+        args: Box<[Spanned<Operand<'tcx>>]>,
+    ) -> PartialResolverResult<'tcx> {
         match const_operand.const_ {
             mir::Const::Val(_, ty) => match ty.kind() {
                 ty::TyKind::FnDef(def_id, generic_args) => {
@@ -306,18 +326,17 @@ where
                         if krate_name == rustc_span::Symbol::intern("core") {
                             let fun_name = self.analyzer.tcx.def_path_str(*def_id);
                             if fun_name == "std::clone::Clone::clone" {
-                                return ((*def_id, None), CallKind::Clone);
+                                return (((*def_id, None), CallKind::Clone), args);
                             }
                         }
                     }
 
                     if self.analyzer.tcx.is_closure_like(*def_id) {
-                        return ((*def_id, None), CallKind::Closure);
+                        return (((*def_id, None), CallKind::Closure), args);
                     }
 
                     // Interpret the generic_args as a closure
                     let closure_args = generic_args.as_closure().args;
-
                     if closure_args.len() > 1 {
                         if let Some(ty) = closure_args[0].as_type() {
                             if let ty::TyKind::Closure(closure_def_id, _substs) = ty.kind() {
@@ -325,7 +344,7 @@ where
                                     self.analyzer.tcx.def_kind(*closure_def_id)
                                         == rustc_hir::def::DefKind::Closure
                                 );
-                                return ((*closure_def_id, None), CallKind::Closure);
+                                return (((*closure_def_id, None), CallKind::Closure), args);
                             }
                         }
                     }
@@ -334,12 +353,54 @@ where
                     if self.analyzer.tcx.def_kind(*def_id) == rustc_hir::def::DefKind::AssocFn {
                         let assoc_item = self.analyzer.tcx.associated_item(*def_id);
                         if assoc_item.fn_has_self_parameter {
-                            return ((*def_id, None), CallKind::Method);
+                            // Check if the def_id is the std::ops::Fn<(T,)>::call
+                            // The call is in the form:
+                            // bb0: {
+                            //     _1 = T { value: const 10_i32 };
+                            //     _2 = return_test() -> [return: bb1, unwind continue];
+                            // }
+
+                            // bb1: {
+                            //     _4 = &_2;
+                            //     _5 = (copy _1,);
+                            //     _3 = <fn(T) {test} as std::ops::Fn<(T,)>>::call(move _4, move _5) -> [return: bb2, unwind continue];
+                            // }
+                            let krate_name = self.analyzer.tcx.crate_name(def_id.krate);
+                            if krate_name == rustc_span::Symbol::intern("core") {
+                                let fun_name = self.analyzer.tcx.def_path_str(*def_id);
+                                if fun_name == "std::ops::Fn::call" {
+                                    let ty_arg_0 = self.ctx.map_place_ty
+                                        [&args[0].node.place().unwrap().local]
+                                        .clone();
+                                    log::error!("The type_arg_0 is: {:#?}", ty_arg_0);
+                                    assert!(matches!(ty_arg_0.kind(), ty::TyKind::Ref(_, _, _)));
+                                    match ty_arg_0.kind() {
+                                        ty::TyKind::Ref(_, ty, _) => {
+                                            log::error!("The ty is: {:#?}", ty);
+                                            match ty.kind() {
+                                                ty::TyKind::FnDef(def_id, _generic_args) => {
+                                                    return (
+                                                        self.def_id_as_fun_or_method(*def_id),
+                                                        args[1..].to_vec().into_boxed_slice(),
+                                                    );
+                                                }
+                                                // ty::TyKind::Closure(def_id, _substs) => {
+                                                //     return (((*def_id, None), CallKind::Closure), args);
+                                                // }
+                                                _ => unreachable!(),
+                                            }
+                                        }
+                                        _ => unreachable!(),
+                                    }
+                                }
+                            }
+
+                            return (((*def_id, None), CallKind::Method), args);
                         }
                     }
 
                     if self.analyzer.tcx.is_const_default_method(*def_id) {
-                        return ((*def_id, None), CallKind::Method);
+                        return (((*def_id, None), CallKind::Method), args);
                     }
 
                     if self
@@ -347,14 +408,14 @@ where
                         .tcx
                         .impl_method_has_trait_impl_trait_tys(*def_id)
                     {
-                        return ((*def_id, None), CallKind::Method);
+                        return (((*def_id, None), CallKind::Method), args);
                     }
 
                     if let Some(trait_def_id) = self.analyzer.tcx.trait_of_item(*def_id) {
                         let assoc_items = self.analyzer.tcx.associated_items(trait_def_id);
                         for assoc_item in assoc_items.in_definition_order() {
                             if assoc_item.fn_has_self_parameter && assoc_item.def_id == *def_id {
-                                return ((*def_id, None), CallKind::Method);
+                                return (((*def_id, None), CallKind::Method), args);
                             }
                         }
                     }
@@ -365,7 +426,7 @@ where
                             self.analyzer.tcx.def_kind(def_id),
                             rustc_hir::def::DefKind::Fn | rustc_hir::def::DefKind::AssocFn
                         ));
-                        return ((*def_id, None), CallKind::Function);
+                        return (((*def_id, None), CallKind::Function), args);
                     }
 
                     // Check if the def_id is external
@@ -375,35 +436,38 @@ where
 
                         // Check if it is in the core crate
                         if krate_name == rustc_span::Symbol::intern("core") {
-                            return ((*def_id, None), CallKind::Function);
+                            return (((*def_id, None), CallKind::Function), args);
                         }
 
                         // Check if it is in the std crate
                         if krate_name == rustc_span::Symbol::intern("std") {
-                            return ((*def_id, None), CallKind::Function);
+                            return (((*def_id, None), CallKind::Function), args);
                         }
 
                         // Check if it is in the alloc crate
                         if krate_name == rustc_span::Symbol::intern("alloc") {
-                            return ((*def_id, None), CallKind::Function);
+                            return (((*def_id, None), CallKind::Function), args);
                         }
 
                         // Check if it is external but specified as dependency in the Cargo.toml
                         if !RUSTC_DEPENDENCIES.contains(&krate_name.as_str()) {
-                            return ((*def_id, None), CallKind::Function);
+                            return (((*def_id, None), CallKind::Function), args);
                         }
                     }
 
                     // The def_id should not be handled
                     (
                         (
-                            DefId {
-                                krate: def_id.krate,
-                                index: DefIndex::from_usize(0),
-                            },
-                            None,
+                            (
+                                DefId {
+                                    krate: def_id.krate,
+                                    index: DefIndex::from_usize(0),
+                                },
+                                None,
+                            ),
+                            CallKind::Unknown,
                         ),
-                        CallKind::Unknown,
+                        args,
                     )
                 }
                 _ => unreachable!(),
@@ -420,7 +484,7 @@ where
                     //     _1 = const  const {alloc11: &fn()}-> [return: bb1, unwind continue];
                     // }
                     // ```
-                    self.def_id_as_static_or_const(unevaluated_const.def)
+                    (self.def_id_as_static_or_const(unevaluated_const.def), args)
                 }
                 _ => unreachable!(),
             },

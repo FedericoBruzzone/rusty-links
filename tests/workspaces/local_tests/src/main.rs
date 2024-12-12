@@ -204,7 +204,7 @@
 
 // ====================================================================================
 
-// static HELLO: &'static str = "Hello";
+// // static HELLO: &'static str = "Hello";
 // static HELLO: [char; 5] = ['H', 'e', 'l', 'l', 'o'];
 // const HELLO_C: [char; 5] = ['H', 'e', 'l', 'l', 'o'];
 
@@ -233,7 +233,7 @@
 //     let t = &TEST_LAMBDA;
 //     t();
 
-//     let t = unsafe { TEST_LAMBDA_MUT };
+//     let t = unsafe { TEST_LAMBDA_MUT }; // Problem
 //     t();
 
 //     let t = unsafe { &TEST_LAMBDA_MUT };
@@ -259,16 +259,22 @@
 
 // ====================================================================================
 
-fn f1() -> i32 {
-    10
+#[derive(Clone, Copy)]
+struct T {
+    value: i32,
 }
-
-fn f2() -> i32 {
-    20
+fn test(t: T) {
+    let _ = t;
+}
+fn return_test() -> impl Fn(T) {
+    test
 }
 
 fn main() {
-    let af1 = &f1;
-    let af2 = &f2;
-    let result = af1() + af2();
+    let t = T { value: 10 };
+    let f = return_test();
+    f(t);
+
+    // test(t);
+    // test(t);
 }
