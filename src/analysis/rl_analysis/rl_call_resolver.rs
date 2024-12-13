@@ -407,10 +407,10 @@ where
                                                         args[1..].to_vec().into_boxed_slice(),
                                                     );
                                                 }
-                                                // ty::TyKind::Closure(def_id, _substs) => {
-                                                //     return (((*def_id, None), CallKind::Closure), args);
-                                                // }
-                                                _ => unreachable!(),
+                                                ty::TyKind::Param(_) => todo!(), // Handle for `rustc`
+                                                _ => unreachable!(), // ty::TyKind::Closure(def_id, _substs) => {
+                                                                     //     return (((*def_id, None), CallKind::Closure), args);
+                                                                     // }
                                             }
                                         }
                                         _ => unreachable!(),

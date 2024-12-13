@@ -7,6 +7,8 @@ ast
 test
 mir
 .rl_serde
+tgt
+rust
 
 
 ### Rust ###
@@ -27,4 +29,3 @@ Cargo.lock
 
 # End of https://www.toptal.com/developers/gitignore/api/rust
 
-tgt

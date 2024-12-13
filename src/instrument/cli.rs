@@ -1,6 +1,6 @@
 use std::{
     env, fs,
-    path::PathBuf,
+    path::Path,
     process::{exit, Command, Stdio},
 };
 
@@ -100,7 +100,7 @@ pub fn cli_main<T: RustcPlugin>(plugin: T, before_exec: impl FnOnce(), after_exe
         .collect::<Vec<_>>();
 
     match plugin_args.filter {
-        CrateFilter::CrateContainingFile(file_path) => {
+        CrateFilter::CrateContainingFile(ref file_path) => {
             log::debug!("Running on file: {:?}", file_path);
             only_run_on_file(&mut cmd, file_path, &workspace_members, &target_dir);
         }
@@ -144,8 +144,13 @@ pub fn cli_main<T: RustcPlugin>(plugin: T, before_exec: impl FnOnce(), after_exe
 
     let exit_status = cmd.status().expect("failed to wait for cargo?");
 
-    if workspace_members.len() > 1 {
-        after_exec();
+    match plugin_args.filter {
+        CrateFilter::AllCrates | CrateFilter::OnlyWorkspace => {
+            if workspace_members.len() > 1 {
+                after_exec();
+            }
+        }
+        CrateFilter::CrateContainingFile(_) => {}
     }
 
     exit(exit_status.code().unwrap_or(-1));
@@ -153,7 +158,7 @@ pub fn cli_main<T: RustcPlugin>(plugin: T, before_exec: impl FnOnce(), after_exe
 
 fn only_run_on_file(
     cmd: &mut Command,
-    file_path: PathBuf,
+    file_path: &Path,
     workspace_members: &[&cargo_metadata::Package],
     target_dir: &Utf8Path,
 ) {

@@ -110,6 +110,7 @@ impl RustcPlugin for RustyLinks {
         let args = CliArgs::parse_from(env::args());
 
         let filter = CrateFilter::AllCrates;
+        // let filter = CrateFilter::CrateContainingFile(PathBuf::from("compiler/rustc/src/main.rs"));
         RustcPluginArgs { args, filter }
     }
 
@@ -124,7 +125,8 @@ impl RustcPlugin for RustyLinks {
         log::debug!("Running plugin with args: {:?}", plugin_args);
         let mut callbacks = PluginCallbacks { args: plugin_args };
         let compiler = rustc_driver::RunCompiler::new(&compiler_args, &mut callbacks);
-        compiler.run()
+        compiler.run();
+        Ok(())
     }
 }
 
@@ -163,7 +165,6 @@ impl rustc_driver::Callbacks for PluginCallbacks {
         compiler.sess.dcx().abort_if_errors();
         queries
             .global_ctxt()
-            .expect("Error: global context not found")
             .enter(|tcx: rustc_middle::ty::TyCtxt| {
                 Analyzer::<'tcx>::new(tcx, self.args.clone()).run()
             });
