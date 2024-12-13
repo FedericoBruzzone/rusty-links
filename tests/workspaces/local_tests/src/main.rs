@@ -266,7 +266,7 @@ struct T {
 fn test(t: T) {
     let _ = t;
 }
-fn return_test() -> impl Fn(T) {
+fn return_test() -> fn(T) {
     test
 }
 

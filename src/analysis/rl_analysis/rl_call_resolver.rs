@@ -212,6 +212,31 @@ where
                 RLValue::Rvalue(Rvalue::Cast(_, operand, _)) => {
                     self.resolve_call_def_id(operand, args, bb)
                 }
+                RLValue::TermCall(_) => {
+                    // TODO: Try to handle the case where the def_id is a function pointer.
+                    let local_of_def_id = self.ctx.map_place_ty[&local].clone();
+                    match local_of_def_id.kind() {
+                        ty::TyKind::FnPtr(binder, _) => {
+                            // We cannot handle the function pointer in this case.
+                            // For instance, in the following MIR:
+                            // fn return_test() -> fn(T) {
+                            //     let mut _0: fn(T);
+                            //
+                            //     bb0: {
+                            //         _0 = test as fn(T) (PointerCoercion(ReifyFnPointer, Implicit));
+                            //         return;
+                            //     }
+                            // }
+                            log::error!(
+                                "The local ({:?}) is a function pointer: {:?}",
+                                local,
+                                binder
+                            );
+                            unimplemented!()
+                        }
+                        _ => unimplemented!(),
+                    }
+                }
                 _ => unreachable!(),
             }
         } else {
@@ -372,13 +397,11 @@ where
                                     let ty_arg_0 = self.ctx.map_place_ty
                                         [&args[0].node.place().unwrap().local]
                                         .clone();
-                                    log::error!("The type_arg_0 is: {:#?}", ty_arg_0);
                                     assert!(matches!(ty_arg_0.kind(), ty::TyKind::Ref(_, _, _)));
                                     match ty_arg_0.kind() {
                                         ty::TyKind::Ref(_, ty, _) => {
-                                            log::error!("The ty is: {:#?}", ty);
                                             match ty.kind() {
-                                                ty::TyKind::FnDef(def_id, _generic_args) => {
+                                                ty::TyKind::FnDef(def_id, _) => {
                                                     return (
                                                         self.def_id_as_fun_or_method(*def_id),
                                                         args[1..].to_vec().into_boxed_slice(),

@@ -7,7 +7,7 @@ mod test_snippets_simple_call_method_mut_ref_self {
     const FOLDER: &str = "tests/snippets/simple_call_method_mut_ref_self";
 
     #[test]
-    fn test_simple_call_with_file_call_method_mut_ref_self_directly() -> Result<(), String> {
+    fn test_call_method_mut_ref_self_directly() -> Result<(), String> {
         let snippet =
             &std::fs::read_to_string(format!("{FOLDER}/call_method_mut_ref_self_directly.rs"))
                 .unwrap();
@@ -19,7 +19,7 @@ mod test_snippets_simple_call_method_mut_ref_self {
     }
 
     #[test]
-    fn test_simple_call_with_file_call_method_mut_ref_self_alias() -> Result<(), String> {
+    fn test_call_method_mut_ref_self_alias() -> Result<(), String> {
         let snippet =
             &std::fs::read_to_string(format!("{FOLDER}/call_method_mut_ref_self_alias.rs"))
                 .unwrap();
@@ -31,7 +31,7 @@ mod test_snippets_simple_call_method_mut_ref_self {
     }
 
     #[test]
-    fn test_simple_call_with_file_call_method_mut_ref_self_ref_alias() -> Result<(), String> {
+    fn test_call_method_mut_ref_self_ref_alias() -> Result<(), String> {
         let snippet =
             &std::fs::read_to_string(format!("{FOLDER}/call_method_mut_ref_self_ref_alias.rs"))
                 .unwrap();
@@ -43,8 +43,7 @@ mod test_snippets_simple_call_method_mut_ref_self {
     }
 
     #[test]
-    fn test_simple_call_with_file_call_method_mut_ref_self_directly_from_closure(
-    ) -> Result<(), String> {
+    fn test_call_method_mut_ref_self_directly_from_closure() -> Result<(), String> {
         let snippet = &std::fs::read_to_string(format!(
             "{FOLDER}/call_method_mut_ref_self_directly_from_closure.rs"
         ))
@@ -58,8 +57,7 @@ mod test_snippets_simple_call_method_mut_ref_self {
     }
 
     #[test]
-    fn test_simple_call_with_file_call_method_mut_ref_self_alias_from_closure() -> Result<(), String>
-    {
+    fn test_call_method_mut_ref_self_alias_from_closure() -> Result<(), String> {
         let snippet = &std::fs::read_to_string(format!(
             "{FOLDER}/call_method_mut_ref_self_alias_from_closure.rs"
         ))
@@ -73,8 +71,7 @@ mod test_snippets_simple_call_method_mut_ref_self {
     }
 
     #[test]
-    fn test_simple_call_with_file_call_method_mut_ref_self_ref_alias_from_closure(
-    ) -> Result<(), String> {
+    fn test_call_method_mut_ref_self_ref_alias_from_closure() -> Result<(), String> {
         let snippet = &std::fs::read_to_string(format!(
             "{FOLDER}/call_method_mut_ref_self_ref_alias_from_closure.rs"
         ))
