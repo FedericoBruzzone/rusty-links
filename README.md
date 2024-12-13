@@ -3,13 +3,13 @@
 RustyLinks instruments the Rust compiler, in particular the MIR (Mid-level Intermediate Representation), to leverage ownership semantics and borrow checking to perform static analysis.
 It is a research project that aims to improve the Rust programming language by providing additional information to the compiler.
 
-## Usage
+## Usage in common Rust projects
 
 ### Setup
 
 ```bash
-rustup toolchain install X 
-rustup component add --toolchain X rust-src rustc-dev llvm-tools-preview miri rust-analyzer clippy
+rustup toolchain install nightly-2024-12-10
+rustup component add --toolchain nightly-2024-12-10 rust-src rustc-dev llvm-tools-preview miri rust-analyzer clippy
 ```
 
 ### Test
@@ -51,4 +51,36 @@ or
 ```bash
 cd tests/workspaces/first
 CARGO_PRIMARY_PACKAGE=1 cargo run --manifest-path ../../Cargo.toml --bin rusty-links-driver -- ./src/main.rs
+```
+
+## Example: usage in `rustc` compiler
+
+### `rustc` setup
+
+```shell
+cd tests
+git clone git@github.com:rust-lang/rust.git --depth 1
+cd rust
+./x setup 
+./x build --stage 0
+./x build --stage 1
+./x build --stage 2 # Implies compilation of stage1's stdlib
+```
+
+### RustyLinks setup
+
+Set in `rust-toolchain` the `channel=stage1`.
+
+```shell 
+cd ../..
+cargo clean
+cargo build
+```
+
+### Driver (`rustc` wrapper)
+
+```shell
+cd tests/rust
+rm -rf target
+RUSTC_BOOTSTRAP=1 CARGO_PRIMARY_PACKAGE=1 RUST_LOG_STYLE=always RUST_LOG=trace LD_LIBRARY_PATH=PATH/TO/rusty-links/tests/rust/build/x86_64-unknown-linux-gnu/stage1/lib/rustlib/x86_64-unknown-linux-gnu/lib ../../target/debug/cargo-rusty-links --color-log  --print-mir --print-rl-graph --filter-with-file "compiler/rustc/src/main.rs"
 ```

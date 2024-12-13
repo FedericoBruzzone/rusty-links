@@ -19,7 +19,7 @@ use analysis::{rl_analysis::RLAnalysis, Analyzer};
 use clap::Parser;
 use instrument::{CrateFilter, RustcPlugin, RustcPluginArgs, Utf8Path};
 use serde::{Deserialize, Serialize};
-use std::{borrow::Cow, env};
+use std::{borrow::Cow, env, path::PathBuf};
 
 // To parse CLI arguments, we use Clap for this example. But that
 // detail is up to you.
@@ -48,6 +48,10 @@ pub struct CliArgs {
     // Print serialized RustyLinks graph
     #[clap(long)]
     print_serialized_rl_graph: bool,
+
+    // Provide a file to filter the analysis
+    #[clap(long)]
+    filter_with_file: Option<String>,
 
     #[clap(last = true)]
     // mytool --allcaps -- some extra args here
@@ -109,8 +113,15 @@ impl RustcPlugin for RustyLinks {
         #[cfg(not(feature = "test-mode"))]
         let args = CliArgs::parse_from(env::args());
 
-        let filter = CrateFilter::AllCrates;
+        // let filter = CrateFilter::AllCrates;
         // let filter = CrateFilter::CrateContainingFile(PathBuf::from("compiler/rustc/src/main.rs"));
+
+        let filter = if let Some(file) = &args.filter_with_file {
+            CrateFilter::CrateContainingFile(PathBuf::from(&file))
+        } else {
+            CrateFilter::AllCrates
+        };
+
         RustcPluginArgs { args, filter }
     }
 
