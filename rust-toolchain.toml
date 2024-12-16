@@ -1,5 +1,6 @@
 [toolchain]
 channel = "nightly-2024-12-10" # "nightly-2024-10-18" # channel = "nightly-2024-05-20" # channel = "nightly-2024-01-24"
+# channel = "stage1" 
 components = [
     "rust-src", 
     "rustc-dev", 

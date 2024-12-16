@@ -14,6 +14,7 @@ const METHOD_CALL_MULTIPLIER: f32 = 1.0;
 const FUNCTION_CALL_MULTIPLIER: f32 = 1.0;
 const CLOSURE_CALL_MULTIPLIER: f32 = 1.0;
 const CONST_CALL_MULTIPLIER: f32 = 1.0;
+const STATICALLY_UNKNOWN_CALL_MULTIPLIER: f32 = 1.0;
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub enum CallKindMultiplier {
@@ -23,6 +24,7 @@ pub enum CallKindMultiplier {
     Function,
     Closure,
     Const,
+    StaticallyUnknown,
 }
 
 impl Deref for CallKindMultiplier {
@@ -36,6 +38,7 @@ impl Deref for CallKindMultiplier {
             CallKindMultiplier::Function => &FUNCTION_CALL_MULTIPLIER,
             CallKindMultiplier::Closure => &CLOSURE_CALL_MULTIPLIER,
             CallKindMultiplier::Const => &CONST_CALL_MULTIPLIER,
+            CallKindMultiplier::StaticallyUnknown => &STATICALLY_UNKNOWN_CALL_MULTIPLIER,
         }
     }
 }
@@ -99,6 +102,10 @@ where
                 self.resolve_closure_weights(args),
             ),
             CallKind::Const => (CallKindMultiplier::Const, self.resolve_const(args)),
+            CallKind::StaticallyUnknown => (
+                CallKindMultiplier::StaticallyUnknown,
+                self.resolve_args(args),
+            ),
             CallKind::Clone => unreachable!(),
             CallKind::Unknown => unreachable!(),
         }

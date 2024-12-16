@@ -2,7 +2,11 @@ use super::{
     rl_context::{CallKind, RLContext},
     rl_graph::RLGraph,
 };
-use crate::analysis::{rl_analysis::rl_context::RLValue, utils::RUSTC_DEPENDENCIES, Analyzer};
+use crate::analysis::{
+    rl_analysis::rl_context::RLValue,
+    utils::{RUSTC_DEPENDENCIES, STATICALLY_UNKNOWN_DEF_ID},
+    Analyzer,
+};
 use rustc_const_eval::interpret::GlobalAlloc;
 use rustc_hash::FxHashSet;
 use rustc_hir::def_id::{DefId, DefIndex};
@@ -116,6 +120,9 @@ where
                 .as_ref()
                 .unwrap_or_else(|| unreachable!())
             {
+                RLValue::TermCallStaticallyUnknown(def_id) => {
+                    (vec![((*def_id, None), CallKind::StaticallyUnknown)], args)
+                }
                 // _5 = const T
                 // T := main::promoted[0] // this could be function, method or a const
                 //   | {alloc1: &[char; 5]}
@@ -216,8 +223,7 @@ where
                     // TODO: Try to handle the case where the def_id is a function pointer.
                     let local_of_def_id = self.ctx.map_place_ty[&local].clone();
                     match local_of_def_id.kind() {
-                        ty::TyKind::FnPtr(binder, _) => {
-                            // We cannot handle the function pointer in this case.
+                        ty::TyKind::FnPtr(_, _) => {
                             // For instance, in the following MIR:
                             // fn return_test() -> fn(T) {
                             //     let mut _0: fn(T);
@@ -227,12 +233,13 @@ where
                             //         return;
                             //     }
                             // }
-                            log::error!(
-                                "The local ({:?}) is a function pointer: {:?}",
-                                local,
-                                binder
-                            );
-                            unimplemented!()
+                            (
+                                vec![(
+                                    (STATICALLY_UNKNOWN_DEF_ID, None),
+                                    CallKind::StaticallyUnknown,
+                                )],
+                                args,
+                            )
                         }
                         _ => unimplemented!(),
                     }
@@ -407,10 +414,19 @@ where
                                                         args[1..].to_vec().into_boxed_slice(),
                                                     );
                                                 }
-                                                ty::TyKind::Param(_) => todo!(), // Handle for `rustc`
-                                                _ => unreachable!(), // ty::TyKind::Closure(def_id, _substs) => {
-                                                                     //     return (((*def_id, None), CallKind::Closure), args);
-                                                                     // }
+                                                ty::TyKind::Param(_) => {
+                                                    return (
+                                                        (
+                                                            (STATICALLY_UNKNOWN_DEF_ID, None),
+                                                            CallKind::StaticallyUnknown,
+                                                        ),
+                                                        args,
+                                                    );
+                                                }
+                                                // ty::TyKind::Closure(def_id, _substs) => {
+                                                //     return (((*def_id, None), CallKind::Closure), args);
+                                                // }
+                                                _ => unreachable!(),
                                             }
                                         }
                                         _ => unreachable!(),

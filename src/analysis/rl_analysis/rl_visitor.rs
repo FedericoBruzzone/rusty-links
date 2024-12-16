@@ -102,14 +102,14 @@ where
             self.ctx.map_place_ty.remove(&local);
         }
 
-        log::trace!("The map_parent_bb: {:?}", self.ctx.map_parent_bb);
+        // log::trace!("The map_parent_bb: {:?}", self.ctx.map_parent_bb);
         // Clear map_parent_bb
         self.ctx.map_parent_bb = rustc_hash::FxHashMap::default();
 
-        log::trace!(
-            "The map_bb_to_map_place_rlvalue: {:?}",
-            self.ctx.map_bb_to_map_place_rlvalue
-        );
+        // log::trace!(
+        //     "The map_bb_to_map_place_rlvalue: {:?}",
+        //     self.ctx.map_bb_to_map_place_rlvalue
+        // );
         // Clear map_bb_to_map_place_rlvalue
         self.ctx.map_bb_to_map_place_rlvalue = rustc_hash::FxHashMap::default();
 
@@ -140,8 +140,18 @@ where
             CallKind::Const => args.iter().map(|arg| arg.node.clone()).collect::<Vec<_>>(),
             CallKind::Static => args.iter().map(|arg| arg.node.clone()).collect::<Vec<_>>(),
             CallKind::StaticMut => args.iter().map(|arg| arg.node.clone()).collect::<Vec<_>>(),
+            CallKind::StaticallyUnknown => {
+                args.iter().map(|arg| arg.node.clone()).collect::<Vec<_>>()
+            }
             CallKind::Closure => {
-                // It is safe to assume that the second argument is a tuple by construction.
+                // fn outline<F: FnOnce() -> R, R>(f: F) -> R { f() }
+                // fn main() { outline(|| { 10; }); }
+                if args.len() == 1 {
+                    // A closure with no arguments
+                    return Vec::new();
+                }
+
+                // It is safe to assume that the second (args[1]) argument is a tuple by construction.
                 let args = match &args[1].node {
                     mir::Operand::Move(place) => {
                         let tuple = self.ctx.map_place_rlvalue[&place.local]
@@ -439,6 +449,12 @@ where
                         self.ctx.insert_map_place_rlvalue(
                             destination.local,
                             RLValue::TermCallStaticMut(*def_id),
+                        );
+                    }
+                    CallKind::StaticallyUnknown => {
+                        self.ctx.insert_map_place_rlvalue(
+                            destination.local,
+                            RLValue::TermCallStaticallyUnknown(*def_id),
                         );
                     }
                     CallKind::Unknown => unreachable!(),

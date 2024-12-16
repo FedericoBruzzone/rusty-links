@@ -1,3 +1,5 @@
+use crate::analysis::utils::{DUMMY_CRATE_NUM, DUMMY_DEF_INDEX};
+
 use super::rl_weight_resolver::{CallKindMultiplier, OperandMultiplier};
 use rustc_hir::def_id::{CrateNum, DefIndex};
 use rustc_middle::mir::Promoted;
@@ -73,7 +75,13 @@ impl PartialEq for RLNode {
 
 impl RLGraphNode for RLNode {
     fn create(def_id: DefId, promoted: Option<Promoted>) -> Self {
-        let def_id_str = format!("{:?}", def_id);
+        let def_id_str = match def_id {
+            DefId {
+                krate: DUMMY_CRATE_NUM,
+                index: DUMMY_DEF_INDEX,
+            } => "STATICALLY_UNKNOWN".to_string(),
+            _ => format!("{:?}", def_id),
+        };
         Self {
             def_id,
             promoted,
@@ -99,10 +107,15 @@ impl Serialize for RLNode {
             Some(promoted) => promoted.as_u32(),
             None => u32::MAX,
         };
+        let binding = self.def_id.index.as_u32();
+        let index = match self.def_id.index {
+            DUMMY_DEF_INDEX => "STATICALLY_UNKNOWN",
+            _ => &binding.to_string(),
+        };
         serializer.serialize_str(&format!(
             "{}:{}:{}:{}",
             self.def_id.krate.as_u32(),
-            self.def_id.index.as_u32(),
+            index,
             promoted,
             self.def_id_str,
         ))
@@ -117,7 +130,10 @@ impl<'de> Deserialize<'de> for RLNode {
         let s = String::deserialize(deserializer)?;
         let parts: Vec<&str> = s.split(':').collect();
         let krate = parts[0].parse().unwrap();
-        let index = parts[1].parse().unwrap();
+        let index = match parts[1] {
+            "STATICALLY_UNKNOWN" => DUMMY_DEF_INDEX,
+            _ => DefIndex::from_u32(parts[1].parse().unwrap()),
+        };
         let promoted = match parts[2] {
             "4294967295" /* u32::MAX */ => None,
             _ => Some(Promoted::from_u32(parts[2].parse().unwrap())),
@@ -128,7 +144,7 @@ impl<'de> Deserialize<'de> for RLNode {
         Ok(Self {
             def_id: DefId {
                 krate: CrateNum::from_u32(krate),
-                index: DefIndex::from_u32(index),
+                index,
             },
             promoted,
             def_id_str,

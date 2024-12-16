@@ -259,22 +259,34 @@
 
 // ====================================================================================
 
-#[derive(Clone, Copy)]
-struct T {
-    value: i32,
-}
-fn test(t: T) {
-    let _ = t;
-}
-fn return_test() -> impl Fn(T) {
-    test
-}
+// #[derive(Clone, Copy)]
+// struct T {
+//     value: i32,
+// }
+// fn test(t: T) {
+//     let _ = t;
+// }
+// fn return_test() -> impl Fn(T) {
+//     test
+// }
 
+// fn main() {
+//     let t = T { value: 10 };
+//     let f = return_test();
+//     f(t);
+
+//     // test(t);
+//     // test(t);
+// }
+
+// ====================================================================================
+
+// fn outline(f: impl Fn()) { f() }
+// fn outline<F: FnOnce()>(f: F) -> F { f }
+fn outline<F: FnOnce() -> R, R>(f: F) -> R { f() }
 fn main() {
-    let t = T { value: 10 };
-    let f = return_test();
-    f(t);
-
-    // test(t);
-    // test(t);
+    outline(|| {
+        10;
+    });
 }
+

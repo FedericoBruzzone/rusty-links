@@ -16,6 +16,7 @@ pub enum CallKind {
     Function,
     Closure,
     Method,
+    StaticallyUnknown,
     Unknown,
 }
 
@@ -81,6 +82,9 @@ pub enum RLValue<'tcx> {
     /// A terminator call with the def_id of the mutable static that is called.
     /// It means the used of `unsafe` to mutate the static.
     TermCallStaticMut(DefId),
+    /// A terminator call with the def_id of the function that is called.
+    /// The function is not known statically.
+    TermCallStaticallyUnknown(DefId),
 }
 
 pub struct ComeFromSwitchCache<'tcx> {

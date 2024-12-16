@@ -65,7 +65,7 @@ pub struct RustyLinks;
 
 impl RustyLinks {
     pub fn before_exec() {
-        log::debug!("After exec");
+        log::debug!("Before exec");
         RLAnalysis::<rustworkx_core::petgraph::graph::DiGraph<_, _, _>>::clear_rl_folder();
     }
     pub fn after_exec() {

@@ -85,7 +85,7 @@ impl<'tcx> Analyzer<'tcx> {
 
     pub fn run(&mut self) {
         self.pre_process_cli_args();
-        self.run_analysis("FirstAnalysis", |analyzer| {
+        self.run_analysis("RLAnalysis", |analyzer| {
             RLAnalysis::<rustworkx_core::petgraph::graph::DiGraph<_, _, _>>::new(analyzer).run();
         });
         self.post_process_cli_args::<rustworkx_core::petgraph::graph::DiGraph<_, _, _>>();

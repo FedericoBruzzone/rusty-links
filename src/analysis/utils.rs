@@ -1,5 +1,7 @@
 use std::fmt::Display;
 
+use rustc_hir::def_id::{CrateNum, DefId, DefIndex};
+
 pub const RUSTC_DEPENDENCIES: [&str; 19] = [
     "std",
     "core",
@@ -24,6 +26,13 @@ pub const RUSTC_DEPENDENCIES: [&str; 19] = [
 
 pub const RL_SERDE_FOLDER: &str = ".rl_serde";
 pub const MERGED_FILE_NAME: &str = "rlg_merged";
+
+pub const DUMMY_CRATE_NUM: CrateNum = CrateNum::from_u32(0); // Local crate
+pub const DUMMY_DEF_INDEX: DefIndex = DefIndex::from_u32(0); // Crarte root
+pub const STATICALLY_UNKNOWN_DEF_ID: DefId = DefId {
+    krate: DUMMY_CRATE_NUM,
+    index: DUMMY_DEF_INDEX,
+};
 
 pub enum TextMod {
     Reset,
