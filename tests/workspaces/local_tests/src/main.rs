@@ -282,11 +282,11 @@
 // ====================================================================================
 
 // fn outline(f: impl Fn()) { f() }
-// fn outline<F: FnOnce()>(f: F) -> F { f }
-fn outline<F: FnOnce() -> R, R>(f: F) -> R { f() }
+fn outline<F: FnOnce()>(f: F) -> F { f }
+// fn outline<F: FnOnce() -> R, R>(f: F) -> R { f() }
 fn main() {
-    outline(|| {
+    let f = outline(|| {
         10;
     });
+    f();
 }
-

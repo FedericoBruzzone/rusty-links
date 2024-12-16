@@ -120,9 +120,6 @@ where
                 .as_ref()
                 .unwrap_or_else(|| unreachable!())
             {
-                RLValue::TermCallStaticallyUnknown(def_id) => {
-                    (vec![((*def_id, None), CallKind::StaticallyUnknown)], args)
-                }
                 // _5 = const T
                 // T := main::promoted[0] // this could be function, method or a const
                 //   | {alloc1: &[char; 5]}
@@ -351,7 +348,7 @@ where
     ) -> PartialResolverResult<'tcx> {
         match const_operand.const_ {
             mir::Const::Val(_, ty) => match ty.kind() {
-                ty::TyKind::FnDef(def_id, generic_args) => {
+                ty::TyKind::FnDef(def_id, _) => {
                     // Check if it is a clone call
                     if !def_id.is_local() {
                         let krate_name = self.analyzer.tcx.crate_name(def_id.krate);
@@ -367,19 +364,19 @@ where
                         return (((*def_id, None), CallKind::Closure), args);
                     }
 
-                    // Interpret the generic_args as a closure
-                    let closure_args = generic_args.as_closure().args;
-                    if closure_args.len() > 1 {
-                        if let Some(ty) = closure_args[0].as_type() {
-                            if let ty::TyKind::Closure(closure_def_id, _substs) = ty.kind() {
-                                assert!(
-                                    self.analyzer.tcx.def_kind(*closure_def_id)
-                                        == rustc_hir::def::DefKind::Closure
-                                );
-                                return (((*closure_def_id, None), CallKind::Closure), args);
-                            }
-                        }
-                    }
+                    // TODO: Interpret the generic_args as a closure
+                    // let closure_args = generic_args.as_closure().args;
+                    // if closure_args.len() > 1 {
+                    //     if let Some(ty) = closure_args[0].as_type() {
+                    //         if let ty::TyKind::Closure(closure_def_id, _substs) = ty.kind() {
+                    //             assert!(
+                    //                 self.analyzer.tcx.def_kind(*closure_def_id)
+                    //                     == rustc_hir::def::DefKind::Closure
+                    //             );
+                    //             return (((*closure_def_id, None), CallKind::Closure), args);
+                    //         }
+                    //     }
+                    // }
 
                     // Check if the def_id is a method
                     if self.analyzer.tcx.def_kind(*def_id) == rustc_hir::def::DefKind::AssocFn {
@@ -400,34 +397,52 @@ where
                             let krate_name = self.analyzer.tcx.crate_name(def_id.krate);
                             if krate_name == rustc_span::Symbol::intern("core") {
                                 let fun_name = self.analyzer.tcx.def_path_str(*def_id);
-                                if fun_name == "std::ops::Fn::call" {
+                                if fun_name == "std::ops::Fn::call"
+                                    || fun_name == "std::ops::FnOnce::call_once"
+                                {
+                                    if let Operand::Constant(const_operand) = &args[0].node {
+                                         return self.get_def_id(const_operand, args[1..].to_vec().into_boxed_slice());
+                                    };
+
                                     let ty_arg_0 = self.ctx.map_place_ty
                                         [&args[0].node.place().unwrap().local]
                                         .clone();
-                                    assert!(matches!(ty_arg_0.kind(), ty::TyKind::Ref(_, _, _)));
                                     match ty_arg_0.kind() {
-                                        ty::TyKind::Ref(_, ty, _) => {
-                                            match ty.kind() {
-                                                ty::TyKind::FnDef(def_id, _) => {
-                                                    return (
-                                                        self.def_id_as_fun_or_method(*def_id),
-                                                        args[1..].to_vec().into_boxed_slice(),
-                                                    );
-                                                }
-                                                ty::TyKind::Param(_) => {
-                                                    return (
-                                                        (
-                                                            (STATICALLY_UNKNOWN_DEF_ID, None),
-                                                            CallKind::StaticallyUnknown,
-                                                        ),
-                                                        args,
-                                                    );
-                                                }
-                                                // ty::TyKind::Closure(def_id, _substs) => {
-                                                //     return (((*def_id, None), CallKind::Closure), args);
-                                                // }
-                                                _ => unreachable!(),
+                                        ty::TyKind::Ref(_, ty, _) => match ty.kind() {
+                                            ty::TyKind::FnDef(def_id, _) => {
+                                                return (
+                                                    self.def_id_as_fun_or_method(*def_id),
+                                                    args[1..].to_vec().into_boxed_slice(),
+                                                );
                                             }
+                                            ty::TyKind::Param(_) => {
+                                                return (
+                                                    (
+                                                        (STATICALLY_UNKNOWN_DEF_ID, None),
+                                                        CallKind::StaticallyUnknown,
+                                                    ),
+                                                    args,
+                                                );
+                                            }
+                                            ty::TyKind::Closure(def_id, _substs) => {
+                                                return (
+                                                    ((*def_id, None), CallKind::Closure),
+                                                    args,
+                                                );
+                                            }
+                                            _ => unreachable!(),
+                                        },
+                                        ty::TyKind::Closure(def_id, _) => {
+                                            return (((*def_id, None), CallKind::Closure), args);
+                                        }
+                                        ty::TyKind::Param(_) => {
+                                            return (
+                                                (
+                                                    (STATICALLY_UNKNOWN_DEF_ID, None),
+                                                    CallKind::StaticallyUnknown,
+                                                ),
+                                                args,
+                                            );
                                         }
                                         _ => unreachable!(),
                                     }
@@ -508,6 +523,9 @@ where
                         ),
                         args,
                     )
+                }
+                ty::TyKind::Closure(def_id, _) => {
+                    (((*def_id, None), CallKind::Closure), args)
                 }
                 _ => unreachable!(),
             },
