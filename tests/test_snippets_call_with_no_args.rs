@@ -32,7 +32,6 @@ mod test_snippets_call_with_no_args {
         let snippet = &std::fs::read_to_string(format!("{FOLDER}/wrapper.rs")).unwrap();
         let (output, _) = run_with_cargo_bin_and_snippet(snippet, &["--print-rl-graph"])?;
 
-        println!("{}", output);
         assert!(output.contains("1 -> 0")); // main -> outline
         assert!(output.contains("1 -> 2")); // main -> main::{{closure}}
 

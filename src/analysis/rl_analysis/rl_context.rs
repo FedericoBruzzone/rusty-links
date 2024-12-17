@@ -144,6 +144,9 @@ where
     /// See `visit_local` function.
     pub map_place_rlvalue: FxHashMap<mir::Local, Option<RLValue<'tcx>>>,
 
+    /// The arguments of the function that is called.
+    pub set_function_args: FxHashSet<mir::Local>,
+
     /// Abstract domain.
     /// Map from basic block to the map of places and their rvalues.
     /// It is used to retrieve the rvalues of the places that are used in the basic block.
@@ -182,6 +185,7 @@ where
             map_bb_to_map_place_rlvalue: FxHashMap::default(),
             map_place_ty: FxHashMap::default(),
             map_bb_used_locals: FxHashMap::default(),
+            set_function_args: FxHashSet::default(),
             rl_graph_index_map: FxHashMap::default(),
         }
     }

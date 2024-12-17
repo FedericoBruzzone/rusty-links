@@ -5,6 +5,7 @@ use crate::analysis::rl_analysis::rl_context::RLValue;
 use crate::analysis::rl_analysis::rl_weight_resolver::RLWeightResolver;
 use crate::analysis::utils::TextMod;
 
+use rustc_hash::FxHashMap;
 use rustc_hash::FxHashSet;
 use rustc_middle::mir;
 use rustc_middle::mir::visit::Visitor;
@@ -64,13 +65,13 @@ where
 
         self.ctx.current_local_def_id = Some(local_def_id.to_def_id());
 
-        // It ensures that the local variable is in the map with all rlvalue set to None.
-        for (local, _) in body.local_decls.iter_enumerated() {
-            self.ctx.map_place_rlvalue.insert(local, None);
-        }
+        self.ctx.set_function_args = body.args_iter().collect::<FxHashSet<_>>();
 
-        // It ensures that the local variable is in the map with the corresponding type.
         for (local, local_decl) in body.local_decls.iter_enumerated() {
+            // It ensures that the local variable is in the map with all rlvalue set to None.
+            self.ctx.map_place_rlvalue.insert(local, None);
+
+            // It ensures that the local variable is in the map with the corresponding type.
             let ty = RLTy::new(
                 local_decl.ty.kind(),
                 local_decl.mutability,
@@ -102,19 +103,17 @@ where
             self.ctx.map_place_ty.remove(&local);
         }
 
-        // log::trace!("The map_parent_bb: {:?}", self.ctx.map_parent_bb);
-        // Clear map_parent_bb
-        self.ctx.map_parent_bb = rustc_hash::FxHashMap::default();
+        // Clear set_function_args
+        self.ctx.set_function_args = FxHashSet::default();
 
-        // log::trace!(
-        //     "The map_bb_to_map_place_rlvalue: {:?}",
-        //     self.ctx.map_bb_to_map_place_rlvalue
-        // );
+        // Clear map_parent_bb
+        self.ctx.map_parent_bb = FxHashMap::default();
+
         // Clear map_bb_to_map_place_rlvalue
-        self.ctx.map_bb_to_map_place_rlvalue = rustc_hash::FxHashMap::default();
+        self.ctx.map_bb_to_map_place_rlvalue = FxHashMap::default();
 
         // Clear map_bb_used_places
-        self.ctx.map_bb_used_locals = rustc_hash::FxHashMap::default();
+        self.ctx.map_bb_used_locals = FxHashMap::default();
 
         // Clear current_local_def_id
         self.ctx.current_local_def_id = None;

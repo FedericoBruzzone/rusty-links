@@ -110,10 +110,23 @@ where
     ) -> ResolverResult<'tcx> {
         log::debug!(
             "Retrieving the def_id of the function (local: {:?}) that is called",
-            local
+            local,
         );
+
+        if self.ctx.set_function_args.contains(&local) {
+            // Statically unknown function
+            return (
+                vec![(
+                    (STATICALLY_UNKNOWN_DEF_ID, None),
+                    CallKind::StaticallyUnknown,
+                )],
+                args,
+            );
+        }
+
         // If we are on bb0 or if the bb has only one parent
         if self.ctx.map_parent_bb.is_empty() || self.ctx.map_parent_bb[&bb].len() == 1 {
+            log::trace!("The basic block {:?} has only one parent", bb);
             // It can be done because in the visit_terminator we always update set the map_bb_to_map_place_rlvalue
             // with the current map_place_rlvalue.
             match self.ctx.map_bb_to_map_place_rlvalue[&bb][&local]
@@ -184,7 +197,27 @@ where
                 }
                 // _5 = copy (*_6)
                 RLValue::Rvalue(Rvalue::Use(Operand::Copy(place))) => {
-                    self.retrieve_def_id(place.local, args, bb)
+                    // Print the TyKind of the local
+                    match self.ctx.map_place_ty[&place.local].kind() {
+                        ty::TyKind::Tuple(_) => {
+                            // This is the case when the function is called with a tuple.
+                            // For instance, in the following MIR:
+                            // ```rust,ignore
+                            // bb0: {
+                            //     _1 = const  const {alloc11: &fn()}-> [return: bb1, unwind continue];
+                            // }
+                            // ```
+                            // FIXME: handle as STATICALLY_UNKNOWN_DEF_ID
+                            (
+                                vec![(
+                                    (STATICALLY_UNKNOWN_DEF_ID, None),
+                                    CallKind::StaticallyUnknown,
+                                )],
+                                args,
+                            )
+                        }
+                        _ => self.retrieve_def_id(place.local, args, bb),
+                    }
                 }
                 // _5 = move _6
                 RLValue::Rvalue(Rvalue::Use(Operand::Move(place))) => {
@@ -238,12 +271,13 @@ where
                                 args,
                             )
                         }
-                        _ => unimplemented!(),
+                        _ => unreachable!(),
                     }
                 }
                 _ => unreachable!(),
             }
         } else {
+            log::trace!("The basic block {:?} has more than one parent", bb);
             // We need to retrieve the upper local in order to perform the search of it in the parent basic blocks.
             let upper_local =
                 self.retrieve_upper_local_non_const(local, bb, &self.ctx.map_bb_used_locals[&bb]);
@@ -401,7 +435,10 @@ where
                                     || fun_name == "std::ops::FnOnce::call_once"
                                 {
                                     if let Operand::Constant(const_operand) = &args[0].node {
-                                         return self.get_def_id(const_operand, args[1..].to_vec().into_boxed_slice());
+                                        return self.get_def_id(
+                                            const_operand,
+                                            args[1..].to_vec().into_boxed_slice(),
+                                        );
                                     };
 
                                     let ty_arg_0 = self.ctx.map_place_ty
@@ -524,9 +561,7 @@ where
                         args,
                     )
                 }
-                ty::TyKind::Closure(def_id, _) => {
-                    (((*def_id, None), CallKind::Closure), args)
-                }
+                ty::TyKind::Closure(def_id, _) => (((*def_id, None), CallKind::Closure), args),
                 _ => unreachable!(),
             },
             mir::Const::Unevaluated(unevaluated_const, ty) => match ty.kind() {
