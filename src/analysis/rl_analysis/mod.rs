@@ -1,9 +1,9 @@
+mod rl_args_resolver;
 mod rl_call_resolver;
 mod rl_context;
 pub mod rl_graph;
 mod rl_petgraph;
 mod rl_visitor;
-mod rl_weight_resolver;
 
 use super::{
     utils::{MERGED_FILE_NAME, RL_SERDE_FOLDER},

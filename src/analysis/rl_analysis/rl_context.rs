@@ -5,9 +5,9 @@ use rustc_middle::mir::{self, Promoted};
 use rustc_middle::ty;
 use rustc_span::def_id::DefId;
 use serde::de::DeserializeOwned;
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
 
-#[derive(Clone, Debug, PartialEq)]
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub enum CallKind {
     Clone,
     StaticMut,
@@ -29,33 +29,83 @@ impl From<ty::Mutability> for CallKind {
     }
 }
 
-#[allow(dead_code)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub enum OperandKind {
+    Move,
+    Copy,
+    Constant,
+}
+
+#[derive(Debug, Copy, Clone, PartialEq, Serialize, Deserialize)]
+pub enum MutabilityKind {
+    Mut,
+    Not,
+}
+
+impl From<ty::Mutability> for MutabilityKind {
+    fn from(mutability: ty::Mutability) -> Self {
+        match mutability {
+            ty::Mutability::Mut => MutabilityKind::Mut,
+            ty::Mutability::Not => MutabilityKind::Not,
+        }
+    }
+}
+
+#[derive(Debug, Copy, Clone, PartialEq, Serialize, Deserialize)]
+pub enum RLTyKind {
+    Primitive,
+    Composite,
+    Closure,
+    Unknown,
+}
+
+impl From<&ty::TyKind<'_>> for RLTyKind {
+    fn from(value: &ty::TyKind<'_>) -> Self {
+        match value {
+            ty::TyKind::Bool
+            | ty::TyKind::Char
+            | ty::TyKind::Int(_)
+            | ty::TyKind::Uint(_)
+            | ty::TyKind::Float(_)
+            | ty::TyKind::Str
+            | ty::TyKind::Never => RLTyKind::Primitive,
+            ty::TyKind::Array(_, _)
+            | ty::TyKind::Tuple(_)
+            | ty::TyKind::Slice(_)
+            | ty::TyKind::Adt(_, _) => RLTyKind::Composite,
+            ty::TyKind::Closure(_, _)
+            | ty::TyKind::CoroutineClosure(_, _)
+            | ty::TyKind::Coroutine(_, _) => RLTyKind::Closure,
+            _ => RLTyKind::Unknown,
+        }
+    }
+}
+
 #[derive(Debug, Clone)]
 /// RlRy is a struct that represents the type of a place (local variable).
-/// It is used to weight the edges of the graph.
+/// It is &'a ty::TyKind<'tcx>,eight the edges of the graph.
 /// At the beginning, all the places are assigned to its RlTy, since
 /// all the type are known in the local_decls of the MIR.
+///
+/// We do not use RLTyKind because we to have a complete representation of the type
+/// when we pattern match the type during the a call resolution.
 pub struct RLTy<'tcx, 'a> {
     kind: &'a ty::TyKind<'tcx>,
-    mutability: ty::Mutability,
-    user_binding: Option<mir::BindingForm<'tcx>>,
+    mutability: MutabilityKind,
+    // user_binding: Option<mir::BindingForm<'tcx>>,
 }
 
 impl<'tcx, 'a> RLTy<'tcx, 'a> {
-    pub fn new(
-        kind: &'a ty::TyKind<'tcx>,
-        mutability: ty::Mutability,
-        user_binding: Option<mir::BindingForm<'tcx>>,
-    ) -> Self {
-        Self {
-            kind,
-            mutability,
-            user_binding,
-        }
+    pub fn new(kind: &'a ty::TyKind<'tcx>, mutability: MutabilityKind) -> Self {
+        Self { kind, mutability }
     }
 
     pub fn kind(&self) -> &'a ty::TyKind<'tcx> {
         self.kind
+    }
+
+    pub fn mutability(&self) -> MutabilityKind {
+        self.mutability
     }
 }
 

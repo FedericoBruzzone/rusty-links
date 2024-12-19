@@ -282,11 +282,29 @@
 // ====================================================================================
 
 // fn outline(f: impl Fn()) { f() }
-fn outline<F: FnOnce()>(f: F) -> F { f }
+// fn outline<F: FnOnce()>(f: F) -> F { f }
 // fn outline<F: FnOnce() -> R, R>(f: F) -> R { f() }
-fn main() {
-    let f = outline(|| {
-        10;
-    });
-    f();
+// fn main() {
+//     let f = outline(|| {
+//         10;
+//     });
+//     f();
+// }
+
+// ====================================================================================
+
+struct T {
+    _value: i32,
 }
+
+fn main() {
+    let x = T { _value: 10 };
+    let y = &TEST;
+    y(x);
+}
+
+const TEST: fn(T) = |t| {
+    let _ = t;
+};
+
+
