@@ -1,8 +1,9 @@
+use crate::analysis::rl_analysis::rl_args_resolver::RLArgsResolver;
 use crate::analysis::rl_analysis::rl_call_resolver::RLCallResolver;
 use crate::analysis::rl_analysis::rl_context::ComeFromSwitchCache;
+use crate::analysis::rl_analysis::rl_context::MutabilityKind;
 use crate::analysis::rl_analysis::rl_context::RLTy;
 use crate::analysis::rl_analysis::rl_context::RLValue;
-use crate::analysis::rl_analysis::rl_weight_resolver::RLWeightResolver;
 use crate::analysis::utils::TextMod;
 
 use rustc_hash::FxHashMap;
@@ -19,13 +20,13 @@ use serde::de::DeserializeOwned;
 use serde::Serialize;
 
 use super::rl_context::CallKind;
+use super::rl_context::OperandKind;
 use super::rl_context::RLContext;
+use super::rl_context::RLTyKind;
 use super::rl_graph::RLGraph;
 use super::rl_graph::RLGraphEdge;
 use super::rl_graph::RLGraphNode;
 use super::rl_graph::{RLEdge, RLIndex, RLNode};
-use super::rl_weight_resolver::CallKindMultiplier;
-use super::rl_weight_resolver::OperandMultiplier;
 use super::Analyzer;
 
 pub struct RLVisitor<'tcx, 'a, G>
@@ -74,14 +75,14 @@ where
             // It ensures that the local variable is in the map with the corresponding type.
             let ty = RLTy::new(
                 local_decl.ty.kind(),
-                local_decl.mutability,
-                match local_decl.local_info.as_ref() {
-                    mir::ClearCrossCrate::Set(v) => match v.as_ref() {
-                        mir::LocalInfo::User(binding_form) => Some(binding_form.clone()),
-                        _ => None,
-                    },
-                    mir::ClearCrossCrate::Clear => None,
-                },
+                MutabilityKind::from(local_decl.mutability),
+                // match local_decl.local_info.as_ref() {
+                //     mir::ClearCrossCrate::Set(v) => match v.as_ref() {
+                //         mir::LocalInfo::User(binding_form) => Some(binding_form.clone()),
+                //         _ => None,
+                //     },
+                //     mir::ClearCrossCrate::Clear => None,
+                // },
             );
             self.ctx.map_place_ty.insert(local, ty);
         }
@@ -202,7 +203,7 @@ where
     fn add_edge(
         &mut self,
         to_def_id: (DefId, Option<Promoted>),
-        arg_weights: (CallKindMultiplier, Vec<(OperandMultiplier, f32)>),
+        arg_weights: (CallKind, Vec<(OperandKind, MutabilityKind, RLTyKind)>),
     ) {
         log::debug!(
             "Adding an edge between the current visited function ({:?}) and the function that is called ({:?}) with the arguments: {:?}",
@@ -462,8 +463,7 @@ where
                 for ((def_id, promoted), call_kind) in resolved_call {
                     if call_kind != CallKind::Unknown && call_kind != CallKind::Clone {
                         let args = self.update_args(&args, &call_kind);
-                        let arg_weights =
-                            RLWeightResolver::new(&self.ctx).resolve_arg_weights(&call_kind, &args);
+                        let arg_weights = RLArgsResolver::new(&self.ctx).resolve(&call_kind, &args);
                         self.add_edge((def_id, promoted), arg_weights);
                     }
                 }

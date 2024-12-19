@@ -1,6 +1,6 @@
 use crate::analysis::utils::{DUMMY_CRATE_NUM, DUMMY_DEF_INDEX};
 
-use super::rl_weight_resolver::{CallKindMultiplier, OperandMultiplier};
+use super::rl_context::{CallKind, MutabilityKind, OperandKind, RLTyKind};
 use rustc_hir::def_id::{CrateNum, DefIndex};
 use rustc_middle::mir::Promoted;
 use rustc_span::def_id::DefId;
@@ -8,8 +8,7 @@ use serde::{Deserialize, Serialize};
 
 /// The `RLGraphEdge` trait represents an edge in a graph.
 pub trait RLGraphEdge {
-    fn create(edge: (CallKindMultiplier, Vec<(OperandMultiplier, f32)>)) -> Self;
-    fn total_weight(&self) -> f32;
+    fn create(edge: (CallKind, Vec<(OperandKind, MutabilityKind, RLTyKind)>)) -> Self;
 }
 
 /// The `RLGraphNode` trait represents a node in a graph.
@@ -154,54 +153,21 @@ impl<'de> Deserialize<'de> for RLNode {
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct RLEdge {
-    // It represents the weights of the arguments of the function call.
-    // Each weight is associated with an argument, and it is calculated based on the
-    // ownership semantics and the borrowing semantics of the argument.
-    // The weights are used to calculate the total weight of the edge.
-    //
-    // Example:
-    // ```rust,ignore
-    // fn foo(a: i32, b: i32) {}
-    //
-    // fn main() {
-    //     let x = 1;
-    //     let y = 2;
-    //     foo(x, y);
-    // }
-    // ```
-    // The weights of the arguments in this example are both moved, so the total weight of the edge is 2.
-    arg_weights: Vec<(OperandMultiplier, f32)>,
     // It represents the kind of the call and the multiplier of the call.
     // The multiplier is used to calculate the total weight of the edge.
     // A call can be a static call, a method call, a function call, etc.
-    call_multiplier: CallKindMultiplier,
-    total_weight: f32,
-}
-
-impl RLEdge {
-    fn calc_total_weight(edge: &(CallKindMultiplier, Vec<(OperandMultiplier, f32)>)) -> f32 {
-        let (call_multiplier, arg_weights) = edge;
-        let total_weight = arg_weights
-            .iter()
-            .map(|(operand_multiplier, weight)| **operand_multiplier * *weight)
-            .sum::<f32>();
-        total_weight * **call_multiplier
-    }
+    call_multiplier: CallKind,
+    // It represents the kind of the arguments.
+    arg_weights: Vec<(OperandKind, MutabilityKind, RLTyKind)>,
 }
 
 impl RLGraphEdge for RLEdge {
-    fn create(edge: (CallKindMultiplier, Vec<(OperandMultiplier, f32)>)) -> Self {
-        let total_weight = Self::calc_total_weight(&edge);
+    fn create(edge: (CallKind, Vec<(OperandKind, MutabilityKind, RLTyKind)>)) -> Self {
         let (call_multiplier, arg_weights) = edge;
         Self {
             call_multiplier,
             arg_weights,
-            total_weight,
         }
-    }
-
-    fn total_weight(&self) -> f32 {
-        self.total_weight
     }
 }
 

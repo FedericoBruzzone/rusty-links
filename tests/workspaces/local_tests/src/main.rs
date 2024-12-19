@@ -282,11 +282,48 @@
 // ====================================================================================
 
 // fn outline(f: impl Fn()) { f() }
-fn outline<F: FnOnce()>(f: F) -> F { f }
+// fn outline<F: FnOnce()>(f: F) -> F { f }
 // fn outline<F: FnOnce() -> R, R>(f: F) -> R { f() }
+// fn main() {
+//     let f = outline(|| {
+//         10;
+//     });
+//     f();
+// }
+
+// ====================================================================================
+
+// use std::rc::Rc;
+// use std::cell::RefCell;
+
+// #[derive(Clone)]
+// struct T { _value: i32, }
+// // fn test(t: Rc<T>) { let _ = t; }
+// fn test(t: RefCell<T>) { let _ = t; }
+// fn main() {
+//     let x = RefCell::new(T { _value: 10 });
+//     test(x.clone());
+//     test(x);
+//     //   ^__ we have a problem because in the mir this is a place 
+//     //       generate by the compiler and it is not a local variable
+//     //       and these kind of places are always `mut`.
+//     //       Basically, this is an aliasing.
+// }
+
+// ====================================================================================
+
+use std::rc::Rc;
+use std::cell::RefCell;
+
+#[derive(Clone)]
+struct T { _value: i32, }
+fn test(t: Rc<T>) { let _ = t; }
 fn main() {
-    let f = outline(|| {
-        10;
-    });
-    f();
+    let x = Rc::new(T { _value: 10 });
+    test(x.clone());
+    test(x);
+    //   ^__ we have a problem because in the mir this is a place 
+    //       generate by the compiler and it is not a local variable
+    //       and these kind of places are always `mut`.
+    //       Basically, this is an aliasing.
 }

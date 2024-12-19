@@ -61,7 +61,7 @@ CARGO_PRIMARY_PACKAGE=1 cargo run --manifest-path ../../Cargo.toml --bin rusty-l
 cd tests
 git clone git@github.com:rust-lang/rust.git --depth 1
 cd rust
-./x setup 
+./x setup
 ./x build --stage 0
 ./x build --stage 1
 ./x build --stage 2 # Implies compilation of stage1's stdlib
@@ -71,7 +71,7 @@ cd rust
 
 Set in `rust-toolchain` the `channel=stage1`.
 
-```shell 
+```shell
 cd ../..
 cargo clean
 cargo build
@@ -84,3 +84,7 @@ cd tests/rust
 rm -rf target
 RUSTC_BOOTSTRAP=1 CARGO_PRIMARY_PACKAGE=1 RUST_LOG_STYLE=always RUST_LOG=trace LD_LIBRARY_PATH=PATH/TO/rusty-links/tests/rust/build/x86_64-unknown-linux-gnu/stage1/lib/rustlib/x86_64-unknown-linux-gnu/lib ../../target/debug/cargo-rusty-links --color-log  --print-mir --print-rl-graph --filter-with-file "compiler/rustc/src/main.rs"
 ```
+
+## Contact
+
+If you have any questions, suggestions, or feedback, do not hesitate to [contact me](https://federicobruzzone.github.io/).
