@@ -65,7 +65,7 @@ where
         // Handle the clone
         // Static is not good
         // Consider the type of the place (if it is a reference, a value, etc.)
-        
+
         // TODO: find the top-level place (user-defined type)
 
         let rl_ty = self.ctx.map_place_ty[&place.local].clone();

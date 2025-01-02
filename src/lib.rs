@@ -109,7 +109,7 @@ impl RustcPlugin for RustyLinks {
         // In the CLI we run something like `cargo run --bin rusty-links -- --print-dot` or `./target/debug/cargo-rusty-links --print-dot`.
         // It is expanded to `.target/debug/cargo-rusty-links --print-dot`, so we don't need to skip the first argument.
         #[cfg(feature = "test-mode")]
-                let args = CliArgs::parse_from(env::args().skip(1));
+        let args = CliArgs::parse_from(env::args().skip(1));
 
         #[cfg(not(feature = "test-mode"))]
         let args = CliArgs::parse_from(env::args());
