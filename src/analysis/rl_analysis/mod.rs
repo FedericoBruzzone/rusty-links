@@ -83,6 +83,8 @@ where
         visitor.rl_graph().clone()
     }
 
+    // Currently the serialization is done only to allow the merging of the RLGraphs.
+    // The merging is done by the `merge_all_rl_graphs` method, which is used only in tests.
     fn serialize_rl_graph_to_file(&self, rl_graph: &G) {
         std::fs::create_dir_all(RL_SERDE_FOLDER).expect("Failed to create folder");
         let file_name = format!("{}/{}.rlg", RL_SERDE_FOLDER, self.krate_name);

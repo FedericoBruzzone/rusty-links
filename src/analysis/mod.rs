@@ -64,14 +64,17 @@ where
 
         // let rl_graph: G =
         //     self.deserialize_rl_graph_from_file(&self.tcx.crate_name(LOCAL_CRATE).to_string());
-        let rl_graph: G = RLAnalysis::deserialized_rl_graph_from_file(
-            format!(
-                "{}/{}.rlg",
-                RL_SERDE_FOLDER,
-                &self.tcx.crate_name(LOCAL_CRATE).to_string()
-            )
-            .as_str(),
-        );
+        let rl_graph: G = match self.rl_graph.take() {
+            Some(rl_graph) => rl_graph,
+            None => RLAnalysis::deserialized_rl_graph_from_file(
+                format!(
+                    "{}/{}.rlg",
+                    RL_SERDE_FOLDER,
+                    &self.tcx.crate_name(LOCAL_CRATE).to_string()
+                )
+                .as_str(),
+            ),
+        };
 
         if self.cli_args.print_rl_graph {
             log::debug!("Printing the RustyLinks graph");
