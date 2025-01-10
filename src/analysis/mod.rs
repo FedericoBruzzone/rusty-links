@@ -1,6 +1,8 @@
 pub mod rl_analysis;
 pub mod utils;
 
+use std::cell::Cell;
+
 use crate::CliArgs;
 use rl_analysis::rl_graph::{RLEdge, RLGraph, RLIndex, RLNode};
 use rl_analysis::RLAnalysis;
@@ -11,14 +13,29 @@ use serde::de::DeserializeOwned;
 use serde::Serialize;
 use utils::{TextMod, RL_SERDE_FOLDER};
 
-pub struct Analyzer<'tcx> {
+pub struct Analyzer<'tcx, G>
+where
+    G: RLGraph + Default + Clone + Serialize,
+{
     tcx: ty::TyCtxt<'tcx>,
     cli_args: CliArgs,
+    rl_graph: Cell<Option<G>>,
 }
 
-impl<'tcx> Analyzer<'tcx> {
+impl<'tcx, G> Analyzer<'tcx, G>
+where
+    G: RLGraph<Node = RLNode, Edge = RLEdge, Index = RLIndex>
+        + Default
+        + Clone
+        + Serialize
+        + DeserializeOwned,
+{
     pub fn new(tcx: ty::TyCtxt<'tcx>, cli_args: CliArgs) -> Self {
-        Self { tcx, cli_args }
+        Self {
+            tcx,
+            cli_args,
+            rl_graph: Cell::new(None),
+        }
     }
 
     fn pre_process_cli_args(&self) {
@@ -37,14 +54,7 @@ impl<'tcx> Analyzer<'tcx> {
         }
     }
 
-    fn post_process_cli_args<G>(&self)
-    where
-        G: RLGraph<Node = RLNode, Edge = RLEdge, Index = RLIndex>
-            + Default
-            + Clone
-            + Serialize
-            + DeserializeOwned,
-    {
+    fn post_process_cli_args(&self) {
         log::debug!("Post-processing CLI arguments");
 
         if !self.cli_args.print_rl_graph && !self.cli_args.print_serialized_rl_graph {
@@ -92,8 +102,8 @@ impl<'tcx> Analyzer<'tcx> {
     pub fn run(&self) {
         self.pre_process_cli_args();
         self.run_analysis("RLAnalysis", |analyzer| {
-            RLAnalysis::<rustworkx_core::petgraph::graph::DiGraph<_, _, _>>::new(analyzer).run();
+            RLAnalysis::new(analyzer).run();
         });
-        self.post_process_cli_args::<rustworkx_core::petgraph::graph::DiGraph<_, _, _>>();
+        self.post_process_cli_args();
     }
 }

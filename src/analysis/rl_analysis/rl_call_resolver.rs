@@ -32,14 +32,14 @@ where
     G: RLGraph + Default + Clone + Serialize,
 {
     ctx: &'a RLContext<'tcx, 'a, G>,
-    analyzer: &'a Analyzer<'tcx>,
+    analyzer: &'a Analyzer<'tcx, G>,
 }
 
 impl<'tcx, 'a, G> RLCallResolver<'tcx, 'a, G>
 where
     G: RLGraph + Default + Clone + Serialize,
 {
-    pub fn new(ctx: &'a RLContext<'tcx, 'a, G>, analyzer: &'a Analyzer<'tcx>) -> Self {
+    pub fn new(ctx: &'a RLContext<'tcx, 'a, G>, analyzer: &'a Analyzer<'tcx, G>) -> Self {
         Self { ctx, analyzer }
     }
 
@@ -663,7 +663,7 @@ where
         &self,
         alloc_id: mir::interpret::AllocId,
         mutability: &ty::Mutability,
-        analyzer: &Analyzer,
+        analyzer: &Analyzer<'tcx, G>,
     ) -> ((DefId, Option<Promoted>), CallKind) {
         if let GlobalAlloc::Static(def_id) = analyzer.tcx.global_alloc(alloc_id) {
             assert!(matches!(

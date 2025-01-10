@@ -150,7 +150,7 @@ pub fn cli_main<T: RustcPlugin>(plugin: T, before_exec: impl FnOnce(), _after_ex
     match plugin_args.filter {
         CrateFilter::AllCrates | CrateFilter::OnlyWorkspace => {
             if workspace_members.len() > 1 {
-                // after_exec(); // TODO: Avoid merging the rl graphs
+                _after_exec(); // TODO: Avoid merging the rl graphs
             }
         }
         CrateFilter::CrateContainingFile(_) => {}

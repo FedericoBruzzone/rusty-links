@@ -25,7 +25,7 @@ where
         + Serialize
         + DeserializeOwned,
 {
-    analyzer: &'a Analyzer<'tcx>,
+    analyzer: &'a Analyzer<'tcx, G>,
     krate_name: String,
     elapsed: Cell<Option<Duration>>,
     _marked: std::marker::PhantomData<G>,
@@ -39,7 +39,7 @@ where
         + Serialize
         + DeserializeOwned,
 {
-    pub fn new(analyzer: &'a Analyzer<'tcx>) -> Self {
+    pub fn new(analyzer: &'a Analyzer<'tcx, G>) -> Self {
         let krate_name = analyzer.tcx.crate_name(LOCAL_CRATE).to_string();
         Self {
             analyzer,
@@ -131,6 +131,7 @@ where
     pub fn run(&self) {
         let start_time = std::time::Instant::now();
         let rl_graph = self.visitor();
+        self.analyzer.rl_graph.set(Some(rl_graph.clone()));
         let elapsed = start_time.elapsed();
         self.elapsed.set(Some(elapsed));
         self.serialize_rl_graph_to_file(&rl_graph);

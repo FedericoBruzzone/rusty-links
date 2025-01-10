@@ -178,7 +178,11 @@ impl rustc_driver::Callbacks for PluginCallbacks {
         queries
             .global_ctxt()
             .enter(|tcx: rustc_middle::ty::TyCtxt| {
-                Analyzer::<'tcx>::new(tcx, self.args.clone()).run()
+                Analyzer::<'tcx, rustworkx_core::petgraph::graph::DiGraph<_, _, _>>::new(
+                    tcx,
+                    self.args.clone(),
+                )
+                .run()
             });
         compiler.sess.dcx().abort_if_errors();
         rustc_driver::Compilation::Continue

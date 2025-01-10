@@ -33,7 +33,7 @@ pub struct RLVisitor<'tcx, 'a, G>
 where
     G: RLGraph + Default + Clone + Serialize,
 {
-    analyzer: &'a Analyzer<'tcx>,
+    analyzer: &'a Analyzer<'tcx, G>,
     ctx: RLContext<'tcx, 'a, G>,
     rl_graph: G,
 }
@@ -47,7 +47,7 @@ where
         + Serialize
         + DeserializeOwned,
 {
-    pub fn new(analyzer: &'a Analyzer<'tcx>) -> Self {
+    pub fn new(analyzer: &'a Analyzer<'tcx, G>) -> Self {
         Self {
             analyzer,
             ctx: RLContext::new(),
