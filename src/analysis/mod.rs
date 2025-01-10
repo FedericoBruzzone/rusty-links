@@ -46,6 +46,12 @@ impl<'tcx> Analyzer<'tcx> {
             + DeserializeOwned,
     {
         log::debug!("Post-processing CLI arguments");
+
+        if !self.cli_args.print_rl_graph && !self.cli_args.print_serialized_rl_graph {
+            log::debug!("No post-processing needed");
+            return;
+        }
+
         // let rl_graph: G =
         //     self.deserialize_rl_graph_from_file(&self.tcx.crate_name(LOCAL_CRATE).to_string());
         let rl_graph: G = RLAnalysis::deserialized_rl_graph_from_file(
@@ -77,13 +83,13 @@ impl<'tcx> Analyzer<'tcx> {
         }
     }
 
-    fn run_analysis(&mut self, name: &str, f: impl FnOnce(&Self)) {
+    fn run_analysis(&self, name: &str, f: impl FnOnce(&Self)) {
         log::debug!("Running analysis: {}", name);
         f(self);
         log::debug!("Finished analysis: {}", name);
     }
 
-    pub fn run(&mut self) {
+    pub fn run(&self) {
         self.pre_process_cli_args();
         self.run_analysis("RLAnalysis", |analyzer| {
             RLAnalysis::<rustworkx_core::petgraph::graph::DiGraph<_, _, _>>::new(analyzer).run();

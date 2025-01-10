@@ -40,7 +40,7 @@ pub const RUSTC_WORKSPACE_WRAPPER: &str = "RUSTC_WORKSPACE_WRAPPER";
 ///     "crates/crate_b",
 /// ]
 /// ```
-pub fn cli_main<T: RustcPlugin>(plugin: T, before_exec: impl FnOnce(), after_exec: impl FnOnce()) {
+pub fn cli_main<T: RustcPlugin>(plugin: T, before_exec: impl FnOnce(), _after_exec: impl FnOnce()) {
     before_exec();
 
     log::debug!("{:?}", env::args());
@@ -125,9 +125,12 @@ pub fn cli_main<T: RustcPlugin>(plugin: T, before_exec: impl FnOnce(), after_exe
 
     let args_str = serde_json::to_string(&plugin_args.args).unwrap();
     log::debug!("Plugin args: {}", args_str);
+    // let args_struct: crate::CliArgs = serde_json::from_str(&args_str).unwrap();
+    // log::debug!("Plugin struct: {:?}", args_struct);
+
     // We need to pass the plugin args to the driver, so we set an env var
     cmd.env(PLUGIN_ARGS, args_str);
-    // cmd.env(RUST_LOG_STYLE, "always"); // Always colorize logs
+    // cmd.env(RUST_LOG_STYLE, "always"); // FIXME: Always colorize logs
 
     // HACK: if running on the rustc codebase, this env var needs to exist
     // for the code to compile
@@ -140,14 +143,14 @@ pub fn cli_main<T: RustcPlugin>(plugin: T, before_exec: impl FnOnce(), after_exe
     }
 
     plugin.modify_cargo(&mut cmd, &plugin_args.args);
-    log::debug!("Running command: {:?}", cmd);
 
+    log::debug!("Running command: {:?}", cmd);
     let exit_status = cmd.status().expect("failed to wait for cargo?");
 
     match plugin_args.filter {
         CrateFilter::AllCrates | CrateFilter::OnlyWorkspace => {
             if workspace_members.len() > 1 {
-                after_exec();
+                // after_exec(); // TODO: Avoid merging the rl graphs
             }
         }
         CrateFilter::CrateContainingFile(_) => {}
