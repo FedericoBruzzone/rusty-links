@@ -2,6 +2,7 @@
 
 extern crate rustc_ast;
 extern crate rustc_const_eval;
+extern crate rustc_data_structures;
 extern crate rustc_driver;
 extern crate rustc_errors;
 extern crate rustc_hash;
@@ -154,10 +155,9 @@ impl rustc_driver::Callbacks for PluginCallbacks {
         // Errors will not be printed in the `stderr`.
         // config.psess_created = Some(Box::new(|sess| {
         //     let fallback_bundle = rustc_errors::fallback_fluent_bundle(
-        //         rustc_driver::DEFAULT_LOCALE_RESOURCES.to_vec(),
+        //         vec![], // rustc_driver::DEFAULT_LOCALE_RESOURCES.to_vec(),
         //         false,
         //     );
-        //
         //     sess.dcx().make_silent(fallback_bundle, None, false);
         // }));
 
@@ -185,6 +185,7 @@ impl rustc_driver::Callbacks for PluginCallbacks {
                 .run()
             });
         compiler.sess.dcx().abort_if_errors();
+
         rustc_driver::Compilation::Continue
     }
 }
