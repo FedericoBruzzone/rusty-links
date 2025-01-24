@@ -1,3 +1,14 @@
+# Compilation CLI
+
+
+```bash
+clear && cargo clean && cargo build --manifest-path ../../../Cargo.toml && RUST_LOG_STYLE=always RUST_LOG=trace LD_LIBRARY_PATH=$(rustc --print sysroot)/lib ../../../target/debug/cargo-rusty-links --color-log  --print-mir --print-rl-graph > mir
+```
+
+```bash
+rm -rf target && cargo build --manifest-path ../../Cargo.toml && RUSTC_BOOTSTRAP=1 CARGO_PRIMARY_PACKAGE=1 RUST_LOG_STYLE=always RUST_LOG=trace LD_LIBRARY_PATH=/home/fcb/dev/rusty-links/tests/rust/build/x86_64-unknown-linux-gnu/stage1/lib/rustlib/x86_64-unknown-linux-gnu/lib ../../target/debug/cargo-rusty-links --color-log  --print-mir --print-rl-graph --filter-with-file "compiler/rustc/src/main.rs" > mir
+```
+
 # Notes
 
 Copy is better than move. (This phrase assume that the code is written in a way that only the type that needs the copy operator will have it.)
@@ -12,7 +23,7 @@ We can trait the operator `kind` as a multiplier on the `kind` of the place it i
 
 - `move` a place which is a `Clone` -> bad
 - `move` a place which is an `Adt` -> good
-- `move` a place which is a `Const` -> top 
+- `move` a place which is a `Const` -> top
 
 
 
