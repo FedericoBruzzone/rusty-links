@@ -699,6 +699,11 @@ where
             mir::Rvalue::CopyForDeref(place) => {
                 message.push_str(format!(" CopyForDeref: place: {:?}", place).as_str());
             }
+            mir::Rvalue::WrapUnsafeBinder(operand, ty) => {
+                message.push_str(
+                    format!(" WrapUnsafeBinder: operand: {:?}, ty: {:?}", operand, ty).as_str(),
+                );
+            }
         }
         log::trace!("{}", message);
     }

@@ -163,8 +163,7 @@ run_on_all_crates={run_on_all_crates}, \
 primary_package={primary_package}, \
 is_target_crate={is_target_crate}"
             );
-            rustc_driver::RunCompiler::new(&args, &mut DefaultCallbacks).run();
-            Ok(())
+            rustc_driver::run_compiler(&args, &mut DefaultCallbacks)
         }
     }))
 }

@@ -51,11 +51,7 @@ pub trait RustcPlugin: Sized {
     fn modify_cargo(&self, _cargo: &mut Command, _args: &Self::Args) {}
 
     /// Executes the plugin with a set of compiler and plugin args.
-    fn run(
-        self,
-        compiler_args: Vec<String>,
-        plugin_args: Self::Args,
-    ) -> rustc_interface::interface::Result<()>;
+    fn run(self, compiler_args: Vec<String>, plugin_args: Self::Args);
 }
 
 /// The name of the environment variable shared between the CLI and the driver.

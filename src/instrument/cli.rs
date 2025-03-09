@@ -23,7 +23,7 @@ pub const RUSTC_WORKSPACE_WRAPPER: &str = "RUSTC_WORKSPACE_WRAPPER";
 /// # Arguments
 /// - `plugin`: The plugin that will be run on the crates.
 /// - `after_exec`: A closure that will be called after the plugin has been executed only if the plugin was run on a project structured as a workspace.
-///     A workspace is specified as a Cargo.toml file with a `[workspace]` table, usually in the root of the project:
+///   A workspace is specified as a Cargo.toml file with a `[workspace]` table, usually in the root of the project:
 /// ```toml
 /// [package]
 /// name = "test"

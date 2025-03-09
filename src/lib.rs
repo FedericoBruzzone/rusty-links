@@ -129,17 +129,11 @@ impl RustcPlugin for RustyLinks {
 
     // In the driver, we use the Rustc API to start a compiler session
     // for the arguments given to us by rustc_plugin.
-    fn run(
-        self,
-        compiler_args: Vec<String>,
-        plugin_args: Self::Args,
-    ) -> rustc_interface::interface::Result<()> {
+    fn run(self, compiler_args: Vec<String>, plugin_args: Self::Args) {
         log::debug!("Running plugin with compiler args: {:?}", compiler_args);
         log::debug!("Running plugin with args: {:?}", plugin_args);
         let mut callbacks = PluginCallbacks { args: plugin_args };
-        let compiler = rustc_driver::RunCompiler::new(&compiler_args, &mut callbacks);
-        compiler.run();
-        Ok(())
+        rustc_driver::run_compiler(&compiler_args, &mut callbacks)
     }
 }
 
@@ -171,19 +165,15 @@ impl rustc_driver::Callbacks for PluginCallbacks {
     fn after_expansion<'tcx>(
         &mut self,
         compiler: &rustc_interface::interface::Compiler,
-        queries: &'tcx rustc_interface::Queries<'tcx>,
+        tcx: rustc_middle::ty::TyCtxt<'tcx>,
     ) -> rustc_driver::Compilation {
         // Abort if errors occurred during expansion.
         compiler.sess.dcx().abort_if_errors();
-        queries
-            .global_ctxt()
-            .enter(|tcx: rustc_middle::ty::TyCtxt| {
-                Analyzer::<'tcx, rustworkx_core::petgraph::graph::DiGraph<_, _, _>>::new(
-                    tcx,
-                    self.args.clone(),
-                )
-                .run()
-            });
+        Analyzer::<'tcx, rustworkx_core::petgraph::graph::DiGraph<_, _, _>>::new(
+            tcx,
+            self.args.clone(),
+        )
+        .run();
         compiler.sess.dcx().abort_if_errors();
 
         rustc_driver::Compilation::Continue

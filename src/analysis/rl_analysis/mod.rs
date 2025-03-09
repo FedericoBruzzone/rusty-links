@@ -66,7 +66,7 @@ where
         // MyStruct::{constructor#0})
         // MyEnum::Variant::{constructor#0})
         // ```
-        for local_def_id in self.analyzer.tcx.hir().body_owners() {
+        for local_def_id in self.analyzer.tcx.hir_body_owners() {
             // Visit the body of the `local_def_id`
             visitor.visit_local_def_id(
                 local_def_id,

@@ -9,7 +9,7 @@ mod test_workspaces {
     #[test]
     fn test_version_output() -> Result<(), String> {
         let (output, _) = run_with_cargo_bin(FOLDER, None, &["-V"])?;
-        assert_eq!(output, "0.1.0-nightly-2024-11-18\n");
+        assert_eq!(output, "0.1.0-nightly-2025-02-20\n");
         Ok(())
     }
 
