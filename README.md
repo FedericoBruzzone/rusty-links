@@ -1,9 +1,15 @@
 # RustyLinks
 
-RustyLinks instruments the Rust compiler, in particular the MIR (Mid-level Intermediate Representation), to leverage ownership semantics and borrow checking to perform static analysis.
-It is a research project that aims to improve the Rust programming language by providing additional information to the compiler.
+`RustyLinks` extends the Rust compiler by instrumenting the MIR (Mid-level Intermediate Representation) to analyze ownership semantics and borrow checking. This research project aims to enhance Rust by introducing a specialized metric for evaluating source code quality.
 
 ## Usage in common Rust projects
+
+### Fast Run
+
+```bash
+cd tests/workspaces/first
+clear && cargo build --manifest-path ../../../Cargo.toml && RUST_LOG_STYLE=always RUST_LOG=trace LD_LIBRARY_PATH=$(rustc --print sysroot)/lib ../../../target/debug/cargo-rusty-links --color-log
+```
 
 ### Setup
 
